@@ -216,7 +216,7 @@
   cursor: not-allowed;
 }
 
-.ob-canvasHost[data-tool="move"] {
+.ob-canvasHost[data-tool="none"] {
   cursor: default;
 }
 

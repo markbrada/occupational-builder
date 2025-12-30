@@ -1,6 +1,6 @@
 # Occupational Builder
 
-**Build version:** v0.2.4  
+**Build version:** v0.2.5  
 **Status:** Active development (v1 scope)
 
 Occupational Builder is a **design-only, browser-based ramp and platform builder** for occupational access scenarios.  
@@ -169,6 +169,11 @@ Parameters:
 ---
 
 ## Changelog
+
+### v0.2.5
+- Simplified toolbox to ramp/platform/delete with snap toggle, defaulting to no active tool and enabling click-to-select plus drag-to-move without a Move mode.
+- Placement only occurs on empty canvas when ramp/platform is chosen, empty clicks clear selection and tool, and delete mode removes on click.
+- Ramp and platform labels stay upright while shapes rotate, keeping text anchored near each object’s top-left.
 
 ### v0.2.4
 - Default selection on click with a dedicated Move tool for dragging, plus deletion respects empty-canvas clearing.

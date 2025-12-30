@@ -1,11 +1,11 @@
 import { Group, Rect, Text, Arrow } from "react-konva";
-import { RampObj, Tool } from "../../model/types";
+import { ActiveTool, RampObj } from "../../model/types";
 
 type Props = {
   obj: RampObj;
   selected: boolean;
   hover: boolean;
-  activeTool: Tool;
+  activeTool: ActiveTool;
   draggable: boolean;
   ghost?: boolean;
   mmToPx: (mm: number) => number;
@@ -30,6 +30,17 @@ export default function ShapeRamp2D({
 }: Props) {
   const widthPx = mmToPx(obj.runMm);
   const heightPx = mmToPx(obj.widthMm);
+  const rotationRad = (obj.rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(rotationRad);
+  const sin = Math.sin(rotationRad);
+  const labelOffset = {
+    x: -widthPx / 2 + 8,
+    y: -heightPx / 2 + 6,
+  };
+  const rotatedLabel = {
+    x: labelOffset.x * cos - labelOffset.y * sin,
+    y: labelOffset.x * sin + labelOffset.y * cos,
+  };
   const fill = ghost ? "rgba(59,130,246,0.25)" : "#e5e7eb";
   const stroke =
     activeTool === "delete" && hover
@@ -50,36 +61,42 @@ export default function ShapeRamp2D({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onDragEnd={onDragEnd}
-      offsetX={widthPx / 2}
-      offsetY={heightPx / 2}
-      rotation={obj.rotationDeg}
       listening={!ghost}
     >
-      <Rect
-        width={widthPx}
-        height={heightPx}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={selected ? 3 : 2}
-        cornerRadius={6}
-        opacity={opacity}
-      />
-      {obj.showArrow && (
-        <Arrow
-          points={[widthPx * 0.1, heightPx / 2, widthPx * 0.9, heightPx / 2]}
-          pointerLength={14}
-          pointerWidth={14}
+      <Group offsetX={0} offsetY={0} rotation={obj.rotationDeg}>
+        <Rect
+          x={-widthPx / 2}
+          y={-heightPx / 2}
+          width={widthPx}
+          height={heightPx}
+          fill={fill}
           stroke={stroke}
-          fill={stroke}
           strokeWidth={selected ? 3 : 2}
+          cornerRadius={6}
           opacity={opacity}
         />
-      )}
+        {obj.showArrow && (
+          <Arrow
+            points={[
+              -widthPx / 2 + widthPx * 0.1,
+              -heightPx / 2 + heightPx / 2,
+              -widthPx / 2 + widthPx * 0.9,
+              -heightPx / 2 + heightPx / 2,
+            ]}
+            pointerLength={14}
+            pointerWidth={14}
+            stroke={stroke}
+            fill={stroke}
+            strokeWidth={selected ? 3 : 2}
+            opacity={opacity}
+          />
+        )}
+      </Group>
       {!ghost && (
         <Text
           text="Ramp"
-          x={8}
-          y={6}
+          x={rotatedLabel.x}
+          y={rotatedLabel.y}
           fill="#0f172a"
           fontSize={12}
           fontStyle="600"
