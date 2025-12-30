@@ -1,6 +1,6 @@
 # Occupational Builder
 
-**Build version:** v0.3.0  
+**Build version:** v0.2.1  
 **Status:** Active development (v1 scope)
 
 Occupational Builder is a **design-only, browser-based ramp and platform builder** for occupational access scenarios.  
@@ -169,11 +169,6 @@ Parameters:
 ---
 
 ## Changelog
-
-### v0.3.0
-- Added basic 2D canvas object placement for ramps and platforms with Konva rendering.
-- Implemented select/move, delete, and snapping behaviour with selection highlighting.
-- Introduced default ramp and platform dimensions and state wiring for tool selection and snap toggle.
 
 ### v0.2.1
 - Fixed 2D canvas panel layout to keep the canvas visible with proper sizing.
