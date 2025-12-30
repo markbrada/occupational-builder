@@ -1,6 +1,6 @@
 # Occupational Builder
 
-**Build version:** v0.2.0  
+**Build version:** v0.2.1  
 **Status:** Active development (v1 scope)
 
 Occupational Builder is a **design-only, browser-based ramp and platform builder** for occupational access scenarios.  
@@ -169,6 +169,10 @@ Parameters:
 ---
 
 ## Changelog
+
+### v0.2.1
+- Fixed 2D canvas panel layout to keep the canvas visible with proper sizing.
+- Added responsive sizing and visible grid/debug label for the 2D Konva stage.
 
 ### v0.2.0
 - Stable Vite + React + TypeScript baseline

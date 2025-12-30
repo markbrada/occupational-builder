@@ -21,7 +21,7 @@ export default function AppShell() {
         <aside className="panel toolbox-panel">
           <Toolbox snapOn={snapOn} onToggleSnap={handleToggleSnap} />
         </aside>
-        <main className="canvas-panel">
+        <main className="canvas-panel ob-canvasPanel">
           {mode === "2d" ? <Canvas2D /> : <Preview3D />}
         </main>
         <aside className="panel inspector-panel">
