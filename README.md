@@ -170,11 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.2.5
-- Selection now always occurs on click with no default tool, plus one-shot placement and delete tools that return to neutral after use.
-- Dragging works without a Move mode while delete mode blocks drags, and rotating text labels stays upright by removing per-object text.
-- Extracted reusable rotate controls so they can move from the top bar to the Inspector later.
-
 ### v0.2.4
 - Default selection on click with a dedicated Move tool for dragging, plus deletion respects empty-canvas clearing.
 - Added quick rotate (-90°/+90°) buttons in the top bar and persisted rotation for ramps and platforms.

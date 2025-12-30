@@ -1,6 +1,5 @@
 import { APP_VERSION } from "../../app/version";
 import { EditMode } from "../../app/AppShell";
-import RotateControls from "../controls/RotateControls";
 
 type TopBarProps = {
   mode: EditMode;
@@ -15,7 +14,14 @@ export default function TopBar({ mode, onSetMode, canRotate, onRotateLeft, onRot
     <header className="top-bar">
       <h1 className="top-bar__title">Occupational Builder v{APP_VERSION}</h1>
       <div className="top-bar__actions">
-        <RotateControls disabled={!canRotate} onRotateNeg90={onRotateLeft} onRotatePos90={onRotateRight} />
+        <div className="top-bar__rotations">
+          <button type="button" className="mode-button mode-button--ghost" onClick={onRotateLeft} disabled={!canRotate}>
+            Rotate -90°
+          </button>
+          <button type="button" className="mode-button mode-button--ghost" onClick={onRotateRight} disabled={!canRotate}>
+            Rotate +90°
+          </button>
+        </div>
         <div className="top-bar__modes">
           <button
             type="button"

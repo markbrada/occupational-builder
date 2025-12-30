@@ -1,11 +1,11 @@
-import { Group, Rect, Arrow } from "react-konva";
-import { ActiveTool, RampObj } from "../../model/types";
+import { Group, Rect, Text, Arrow } from "react-konva";
+import { RampObj, Tool } from "../../model/types";
 
 type Props = {
   obj: RampObj;
   selected: boolean;
   hover: boolean;
-  activeTool: ActiveTool;
+  activeTool: Tool;
   draggable: boolean;
   ghost?: boolean;
   mmToPx: (mm: number) => number;
@@ -73,6 +73,18 @@ export default function ShapeRamp2D({
           fill={stroke}
           strokeWidth={selected ? 3 : 2}
           opacity={opacity}
+        />
+      )}
+      {!ghost && (
+        <Text
+          text="Ramp"
+          x={8}
+          y={6}
+          fill="#0f172a"
+          fontSize={12}
+          fontStyle="600"
+          opacity={0.85}
+          listening={false}
         />
       )}
     </Group>

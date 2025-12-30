@@ -1,5 +1,4 @@
-export type Tool = "ramp" | "platform" | "delete";
-export type ActiveTool = Tool | null;
+export type Tool = "move" | "ramp" | "platform" | "delete";
 
 export type ObjectKind = "ramp" | "platform";
 
@@ -32,7 +31,7 @@ export type Object2D = RampObj | PlatformObj;
 
 export interface BuilderState {
   mode: "edit" | "preview";
-  activeTool: ActiveTool;
+  activeTool: Tool;
   snapOn: boolean;
   objects: Object2D[];
   selectedId: string | null;

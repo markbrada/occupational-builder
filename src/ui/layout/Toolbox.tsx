@@ -1,10 +1,10 @@
-import { ActiveTool, Tool } from "../../model/types";
+import { Tool } from "../../model/types";
 
 type ToolboxProps = {
-  activeTool: ActiveTool;
+  activeTool: Tool;
   snapOn: boolean;
   onToggleSnap: () => void;
-  onSetActiveTool: (tool: ActiveTool) => void;
+  onSetActiveTool: (tool: Tool) => void;
 };
 
 export default function Toolbox({ activeTool, snapOn, onToggleSnap, onSetActiveTool }: ToolboxProps) {
@@ -13,7 +13,7 @@ export default function Toolbox({ activeTool, snapOn, onToggleSnap, onSetActiveT
       key={tool}
       className={`toolbox__btn ${activeTool === tool ? "isActive" : ""}`}
       type="button"
-      onClick={() => onSetActiveTool(activeTool === tool ? null : tool)}
+      onClick={() => onSetActiveTool(tool)}
     >
       {label}
     </button>
@@ -26,13 +26,14 @@ export default function Toolbox({ activeTool, snapOn, onToggleSnap, onSetActiveT
         <div className="toolbox__row">
           {renderButton("ramp", "Ramp")}
           {renderButton("platform", "Platform (Landing)")}
+          {renderButton("move", "Move")}
           {renderButton("delete", "Delete")}
         </div>
         <label className="snap-toggle">
           <input type="checkbox" checked={snapOn} onChange={onToggleSnap} />
           Snap toggle
         </label>
-        <div className="toolbox__hint">Tip: Esc clears tools. Shortcuts: R, P, D, S.</div>
+        <div className="toolbox__hint">Tip: Esc returns to Move. Shortcuts: M, R, P, D, S.</div>
       </div>
     </div>
   );

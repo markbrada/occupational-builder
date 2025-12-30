@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { newPlatformAt, newRampAt } from "../model/defaults";
-import { ActiveTool, Object2D } from "../model/types";
+import { Object2D, Tool } from "../model/types";
 import Canvas2D from "../ui/canvas/Canvas2D";
 import Preview3D from "../ui/preview/Preview3D";
 import Inspector from "../ui/layout/Inspector";
@@ -10,7 +10,8 @@ import "./styles.css";
 
 export type EditMode = "2d" | "3d";
 
-const statusText: Record<Exclude<ActiveTool, null>, string> = {
+const statusText: Record<Tool, string> = {
+  move: "Move: Click any object to select. Drag to move (unlocked only).",
   ramp: "Ramp: Specify insertion point. Click to place. Esc to cancel.",
   platform: "Platform: Specify insertion point. Click to place. Esc to cancel.",
   delete: "Delete: Click an object to delete. Esc to cancel.",
@@ -18,7 +19,7 @@ const statusText: Record<Exclude<ActiveTool, null>, string> = {
 
 export default function AppShell() {
   const [mode, setMode] = useState<EditMode>("2d");
-  const [activeTool, setActiveTool] = useState<ActiveTool>(null);
+  const [activeTool, setActiveTool] = useState<Tool>("move");
   const [snapOn, setSnapOn] = useState(true);
   const [objects, setObjects] = useState<Object2D[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,10 +33,11 @@ export default function AppShell() {
         return;
       }
       if (event.key === "Escape") {
-        setActiveTool(null);
+        setActiveTool("move");
         return;
       }
       const key = event.key.toLowerCase();
+      if (key === "m") setActiveTool("move");
       if (key === "r") setActiveTool("ramp");
       if (key === "p") setActiveTool("platform");
       if (key === "d") setActiveTool("delete");
@@ -46,14 +48,9 @@ export default function AppShell() {
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
-  const status = useMemo(() => {
-    if (!activeTool) {
-      return "No tool selected. Click any object to select/drag. R/P/D to arm a tool. Esc to cancel.";
-    }
-    return statusText[activeTool];
-  }, [activeTool]);
+  const status = useMemo(() => statusText[activeTool], [activeTool]);
 
-  const handlePlaceAt = (tool: Exclude<ActiveTool, null>, xMm: number, yMm: number) => {
+  const handlePlaceAt = (tool: Tool, xMm: number, yMm: number) => {
     if (tool === "ramp") {
       const ramp = newRampAt(xMm, yMm);
       setObjects((prev) => [...prev, ramp]);
@@ -64,7 +61,7 @@ export default function AppShell() {
       setObjects((prev) => [...prev, platform]);
       setSelectedId(platform.id);
     }
-    setActiveTool(null);
+    setActiveTool("move");
   };
 
   const handleUpdateObject = (id: string, updater: (obj: Object2D) => Object2D) => {
@@ -133,7 +130,7 @@ export default function AppShell() {
         </aside>
       </div>
       <div className="ob-statusBar">
-        <div className="ob-statusBar__mode">Mode: {(activeTool ?? "none").toUpperCase()}</div>
+        <div className="ob-statusBar__mode">Mode: {activeTool.toUpperCase()}</div>
         <div className="ob-statusBar__hint">{status}</div>
       </div>
     </div>

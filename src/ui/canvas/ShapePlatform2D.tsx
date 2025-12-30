@@ -1,11 +1,11 @@
-import { Group, Rect } from "react-konva";
-import { ActiveTool, PlatformObj } from "../../model/types";
+import { Group, Rect, Text } from "react-konva";
+import { PlatformObj, Tool } from "../../model/types";
 
 type Props = {
   obj: PlatformObj;
   selected: boolean;
   hover: boolean;
-  activeTool: ActiveTool;
+  activeTool: Tool;
   draggable: boolean;
   ghost?: boolean;
   mmToPx: (mm: number) => number;
@@ -64,6 +64,18 @@ export default function ShapePlatform2D({
         cornerRadius={8}
         opacity={opacity}
       />
+      {!ghost && (
+        <Text
+          text="Platform"
+          x={8}
+          y={6}
+          fill="#064e3b"
+          fontSize={12}
+          fontStyle="600"
+          opacity={0.9}
+          listening={false}
+        />
+      )}
     </Group>
   );
 }
