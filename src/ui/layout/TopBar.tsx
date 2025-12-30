@@ -7,13 +7,17 @@ type TopBarProps = {
   canRotate: boolean;
   onRotateLeft: () => void;
   onRotateRight: () => void;
+  snapOn: boolean;
 };
 
-export default function TopBar({ mode, onSetMode, canRotate, onRotateLeft, onRotateRight }: TopBarProps) {
+export default function TopBar({ mode, onSetMode, canRotate, onRotateLeft, onRotateRight, snapOn }: TopBarProps) {
   return (
     <header className="top-bar">
       <h1 className="top-bar__title">Occupational Builder v{APP_VERSION}</h1>
       <div className="top-bar__actions">
+        <div className={`top-bar__snap ${snapOn ? "top-bar__snap--on" : "top-bar__snap--off"}`} aria-live="polite">
+          Snap {snapOn ? "ON" : "OFF"}
+        </div>
         <div className="top-bar__rotations">
           <button type="button" className="mode-button mode-button--ghost" onClick={onRotateLeft} disabled={!canRotate}>
             Rotate -90°

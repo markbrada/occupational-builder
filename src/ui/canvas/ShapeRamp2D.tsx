@@ -1,4 +1,4 @@
-import { Group, Rect, Text, Arrow } from "react-konva";
+import { Group, Rect, Arrow } from "react-konva";
 import { RampObj, Tool } from "../../model/types";
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
   onPointerDown?: (evt: any) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  onDragStart?: () => void;
   onDragEnd?: (evt: any) => void;
 };
 
@@ -26,6 +27,7 @@ export default function ShapeRamp2D({
   onPointerDown,
   onMouseEnter,
   onMouseLeave,
+  onDragStart,
   onDragEnd,
 }: Props) {
   const widthPx = mmToPx(obj.runMm);
@@ -49,6 +51,7 @@ export default function ShapeRamp2D({
       onPointerDown={onPointerDown}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       offsetX={widthPx / 2}
       offsetY={heightPx / 2}
@@ -73,18 +76,6 @@ export default function ShapeRamp2D({
           fill={stroke}
           strokeWidth={selected ? 3 : 2}
           opacity={opacity}
-        />
-      )}
-      {!ghost && (
-        <Text
-          text="Ramp"
-          x={8}
-          y={6}
-          fill="#0f172a"
-          fontSize={12}
-          fontStyle="600"
-          opacity={0.85}
-          listening={false}
         />
       )}
     </Group>

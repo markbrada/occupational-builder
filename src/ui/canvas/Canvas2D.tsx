@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
+import { SNAP_MM } from "../../model/constants";
 import { Object2D, PlatformObj, RampObj, Tool } from "../../model/types";
 import { newPlatformAt, newRampAt } from "../../model/defaults";
 import Grid2D from "./Grid2D";
@@ -7,7 +8,6 @@ import ShapePlatform2D from "./ShapePlatform2D";
 import ShapeRamp2D from "./ShapeRamp2D";
 
 const MM_PER_PX = 10;
-const SNAP_MM = 100;
 
 const mmToPx = (mm: number) => mm / MM_PER_PX;
 const pxToMm = (px: number) => px * MM_PER_PX;
@@ -159,6 +159,9 @@ export default function Canvas2D({
 
     if (isStageClick) {
       onClearSelection();
+      if (activeTool === "delete") {
+        onSetActiveTool("none");
+      }
     }
 
     evt.cancelBubble = true;
@@ -166,20 +169,28 @@ export default function Canvas2D({
 
   const handleContextMenu = (evt: any) => {
     evt.evt.preventDefault();
-    if (activeTool !== "move") {
-      onSetActiveTool("move");
-    }
+    onSetActiveTool("none");
   };
 
   const handleObjectPointerDown = (evt: any, obj: Object2D) => {
     onSelect(obj.id);
     if (activeTool === "delete") {
       onDeleteObject(obj.id);
+      onSetActiveTool("none");
     }
     evt.cancelBubble = true;
   };
 
+  const handleObjectDragStart = () => {
+    if (stageRef.current) {
+      stageRef.current.container().style.cursor = "grabbing";
+    }
+  };
+
   const handleObjectDragEnd = (evt: any, obj: Object2D) => {
+    if (stageRef.current) {
+      stageRef.current.container().style.cursor = "";
+    }
     const xPx = evt.target.x();
     const yPx = evt.target.y();
     const xMm = snapOn ? snapMm(pxToMm(xPx)) : pxToMm(xPx);
@@ -197,7 +208,7 @@ export default function Canvas2D({
   const objectNodes = objects.map((obj) => {
     const isSelected = obj.id === selectedId;
     const isHover = obj.id === hoverId;
-    const draggable = activeTool === "move" && !obj.locked;
+    const draggable = isSelected && !obj.locked;
     const hoverHandlers = {
       onMouseEnter: () => setHoverId(obj.id),
       onMouseLeave: () => setHoverId((current) => (current === obj.id ? null : current)),
@@ -211,6 +222,7 @@ export default function Canvas2D({
         activeTool,
         draggable,
         onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
+        onDragStart: handleObjectDragStart,
         onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
         ...hoverHandlers,
       };
@@ -224,6 +236,7 @@ export default function Canvas2D({
       activeTool,
       draggable,
       onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
+      onDragStart: handleObjectDragStart,
       onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
       ...hoverHandlers,
     };

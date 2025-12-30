@@ -26,14 +26,13 @@ export default function Toolbox({ activeTool, snapOn, onToggleSnap, onSetActiveT
         <div className="toolbox__row">
           {renderButton("ramp", "Ramp")}
           {renderButton("platform", "Platform (Landing)")}
-          {renderButton("move", "Move")}
           {renderButton("delete", "Delete")}
         </div>
         <label className="snap-toggle">
           <input type="checkbox" checked={snapOn} onChange={onToggleSnap} />
-          Snap toggle
+          Snap
         </label>
-        <div className="toolbox__hint">Tip: Esc returns to Move. Shortcuts: M, R, P, D, S.</div>
+        <div className="toolbox__hint">Tip: Click to select. Shortcuts: R, P, D, Esc, Backspace, arrows.</div>
       </div>
     </div>
   );

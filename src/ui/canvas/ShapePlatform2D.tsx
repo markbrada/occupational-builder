@@ -1,4 +1,4 @@
-import { Group, Rect, Text } from "react-konva";
+import { Group, Rect } from "react-konva";
 import { PlatformObj, Tool } from "../../model/types";
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
   onPointerDown?: (evt: any) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  onDragStart?: () => void;
   onDragEnd?: (evt: any) => void;
 };
 
@@ -26,19 +27,20 @@ export default function ShapePlatform2D({
   onPointerDown,
   onMouseEnter,
   onMouseLeave,
+  onDragStart,
   onDragEnd,
 }: Props) {
   const widthPx = mmToPx(obj.lengthMm);
   const heightPx = mmToPx(obj.widthMm);
-  const fill = ghost ? "rgba(16,185,129,0.25)" : "#e8f5e9";
+  const fill = ghost ? "rgba(59,130,246,0.25)" : "#e5e7eb";
   const stroke =
     activeTool === "delete" && hover
       ? "#ef4444"
       : selected
-        ? "#10b981"
+        ? "#2563eb"
         : hover
-          ? "#059669"
-          : "#065f46";
+          ? "#64748b"
+          : "#0f172a";
   const opacity = ghost ? 0.35 : 1;
 
   return (
@@ -49,6 +51,7 @@ export default function ShapePlatform2D({
       onPointerDown={onPointerDown}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       offsetX={widthPx / 2}
       offsetY={heightPx / 2}
@@ -61,21 +64,9 @@ export default function ShapePlatform2D({
         fill={fill}
         stroke={stroke}
         strokeWidth={selected ? 3 : 2}
-        cornerRadius={8}
+        cornerRadius={6}
         opacity={opacity}
       />
-      {!ghost && (
-        <Text
-          text="Platform"
-          x={8}
-          y={6}
-          fill="#064e3b"
-          fontSize={12}
-          fontStyle="600"
-          opacity={0.9}
-          listening={false}
-        />
-      )}
     </Group>
   );
 }

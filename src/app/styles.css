@@ -77,6 +77,26 @@
   gap: 12px;
 }
 
+.top-bar__snap {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+  border: 1px solid transparent;
+}
+
+.top-bar__snap--on {
+  background: #ecfeff;
+  color: #0f172a;
+  border-color: #67e8f9;
+}
+
+.top-bar__snap--off {
+  background: #fff7ed;
+  color: #7c2d12;
+  border-color: #fdba74;
+}
+
 .top-bar__rotations {
   display: inline-flex;
   gap: 8px;
@@ -216,7 +236,7 @@
   cursor: not-allowed;
 }
 
-.ob-canvasHost[data-tool="move"] {
+.ob-canvasHost[data-tool="none"] {
   cursor: default;
 }
 

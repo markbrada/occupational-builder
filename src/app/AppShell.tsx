@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { newPlatformAt, newRampAt } from "../model/defaults";
+import { SNAP_MM } from "../model/constants";
 import { Object2D, Tool } from "../model/types";
 import Canvas2D from "../ui/canvas/Canvas2D";
 import Preview3D from "../ui/preview/Preview3D";
@@ -11,15 +12,15 @@ import "./styles.css";
 export type EditMode = "2d" | "3d";
 
 const statusText: Record<Tool, string> = {
-  move: "Move: Click any object to select. Drag to move (unlocked only).",
-  ramp: "Ramp: Specify insertion point. Click to place. Esc to cancel.",
-  platform: "Platform: Specify insertion point. Click to place. Esc to cancel.",
-  delete: "Delete: Click an object to delete. Esc to cancel.",
+  none: "No tool selected. Click any object to select. Shortcuts: R, P, D, Esc.",
+  ramp: "Ramp: Click on empty canvas to place once. Esc to cancel.",
+  platform: "Platform: Click on empty canvas to place once. Esc to cancel.",
+  delete: "Delete: Click an object to delete, or Esc to cancel.",
 };
 
 export default function AppShell() {
   const [mode, setMode] = useState<EditMode>("2d");
-  const [activeTool, setActiveTool] = useState<Tool>("move");
+  const [activeTool, setActiveTool] = useState<Tool>("none");
   const [snapOn, setSnapOn] = useState(true);
   const [objects, setObjects] = useState<Object2D[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,21 +33,41 @@ export default function AppShell() {
       if (["input", "textarea", "select"].includes(activeTag)) {
         return;
       }
+      const key = event.key.toLowerCase();
       if (event.key === "Escape") {
-        setActiveTool("move");
+        setActiveTool("none");
         return;
       }
-      const key = event.key.toLowerCase();
-      if (key === "m") setActiveTool("move");
       if (key === "r") setActiveTool("ramp");
       if (key === "p") setActiveTool("platform");
       if (key === "d") setActiveTool("delete");
-      if (key === "s") setSnapOn((prev) => !prev);
+      if (event.key === "Backspace") {
+        if (selectedId) {
+          event.preventDefault();
+          handleDeleteObject(selectedId);
+        }
+        setActiveTool("none");
+        return;
+      }
+      if (event.key.startsWith("Arrow")) {
+        event.preventDefault();
+        if (!selectedId) return;
+        setObjects((prev) =>
+          prev.map((obj) => {
+            if (obj.id !== selectedId || obj.locked) return obj;
+            if (event.key === "ArrowUp") return { ...obj, yMm: obj.yMm - SNAP_MM };
+            if (event.key === "ArrowDown") return { ...obj, yMm: obj.yMm + SNAP_MM };
+            if (event.key === "ArrowLeft") return { ...obj, xMm: obj.xMm - SNAP_MM };
+            if (event.key === "ArrowRight") return { ...obj, xMm: obj.xMm + SNAP_MM };
+            return obj;
+          }),
+        );
+      }
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, []);
+  }, [selectedId]);
 
   const status = useMemo(() => statusText[activeTool], [activeTool]);
 
@@ -61,7 +82,7 @@ export default function AppShell() {
       setObjects((prev) => [...prev, platform]);
       setSelectedId(platform.id);
     }
-    setActiveTool("move");
+    setActiveTool("none");
   };
 
   const handleUpdateObject = (id: string, updater: (obj: Object2D) => Object2D) => {
@@ -96,6 +117,7 @@ export default function AppShell() {
           canRotate={Boolean(selectedId)}
           onRotateLeft={() => handleRotateSelected(-90)}
           onRotateRight={() => handleRotateSelected(90)}
+          snapOn={snapOn}
         />
       </div>
       <div className="ob-main">

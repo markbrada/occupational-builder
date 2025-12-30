@@ -170,6 +170,11 @@ Parameters:
 
 ## Changelog
 
+### v0.2.5
+- Simplified tools by removing Move, defaulting to no active tool, and matching platform styling to ramps without on-shape labels.
+- Added snap state indicator, renamed Snap control, and ensured click-to-place/delete tools reset after single use with consistent selection outlines.
+- Improved interaction polish with grabbing cursors on drag plus keyboard shortcuts for ramps, platforms, delete, Esc clearing, backspace delete, and arrow-key nudging.
+
 ### v0.2.4
 - Default selection on click with a dedicated Move tool for dragging, plus deletion respects empty-canvas clearing.
 - Added quick rotate (-90°/+90°) buttons in the top bar and persisted rotation for ramps and platforms.
