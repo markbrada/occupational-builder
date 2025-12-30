@@ -1,8 +1,10 @@
 export type Tool = "select" | "ramp" | "platform" | "delete";
 
+export type ObjectKind = "ramp" | "platform";
+
 export interface BaseObj {
   id: string;
-  type: "ramp" | "platform";
+  kind: ObjectKind;
   xMm: number;
   yMm: number;
   rotationDeg: number;
@@ -11,6 +13,7 @@ export interface BaseObj {
 }
 
 export interface RampObj extends BaseObj {
+  kind: "ramp";
   runMm: number;
   widthMm: number;
   heightMm: number;
@@ -18,9 +21,18 @@ export interface RampObj extends BaseObj {
 }
 
 export interface PlatformObj extends BaseObj {
+  kind: "platform";
   lengthMm: number;
   widthMm: number;
   thicknessMm: number;
 }
 
 export type Object2D = RampObj | PlatformObj;
+
+export interface BuilderState {
+  mode: "edit" | "preview";
+  activeTool: Tool;
+  snapOn: boolean;
+  objects: Object2D[];
+  selectedId: string | null;
+}

@@ -200,23 +200,37 @@ export default function Canvas2D({
   const objectNodes = objects.map((obj) => {
     const isSelected = obj.id === selectedId;
     const isHover = obj.id === hoverId;
-    const commonProps = {
+    const draggable = activeTool === "select" && !obj.locked;
+    const hoverHandlers = {
+      onMouseEnter: () => setHoverId(obj.id),
+      onMouseLeave: () => setHoverId((current) => (current === obj.id ? null : current)),
+    };
+    if (obj.kind === "ramp") {
+      const rampProps = {
+        key: obj.id,
+        obj,
+        selected: isSelected,
+        hover: isHover,
+        activeTool,
+        draggable,
+        onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
+        onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
+        ...hoverHandlers,
+      };
+      return <ShapeRamp2D {...rampProps} mmToPx={mmToPx} />;
+    }
+    const platformProps = {
       key: obj.id,
       obj,
       selected: isSelected,
       hover: isHover,
       activeTool,
-      draggable: activeTool === "select" && !obj.locked,
+      draggable,
       onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
       onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
-      onMouseEnter: () => setHoverId(obj.id),
-      onMouseLeave: () => setHoverId((current) => (current === obj.id ? null : current)),
+      ...hoverHandlers,
     };
-
-    if (obj.type === "ramp") {
-      return <ShapeRamp2D {...commonProps} mmToPx={mmToPx} />;
-    }
-    return <ShapePlatform2D {...commonProps} mmToPx={mmToPx} />;
+    return <ShapePlatform2D {...platformProps} mmToPx={mmToPx} />;
   });
 
   return (

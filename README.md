@@ -1,6 +1,6 @@
 # Occupational Builder
 
-**Build version:** v0.2.2  
+**Build version:** v0.2.3  
 **Status:** Active development (v1 scope)
 
 Occupational Builder is a **design-only, browser-based ramp and platform builder** for occupational access scenarios.  
@@ -169,6 +169,9 @@ Parameters:
 ---
 
 ## Changelog
+
+### v0.2.3
+- Fix TypeScript types for BuilderState and 2D shape rendering (build fix).
 
 ### v0.2.2
 - Added CAD-like 2D interaction model with explicit tool modes, single-shot placement, keyboard shortcuts, and status bar guidance.

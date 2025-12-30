@@ -4,7 +4,7 @@ export const makeId = (): string => `obj-${Date.now().toString(36)}-${Math.rando
 
 export const newRampAt = (xMm: number, yMm: number): RampObj => ({
   id: makeId(),
-  type: "ramp",
+  kind: "ramp",
   xMm,
   yMm,
   rotationDeg: 0,
@@ -18,7 +18,7 @@ export const newRampAt = (xMm: number, yMm: number): RampObj => ({
 
 export const newPlatformAt = (xMm: number, yMm: number): PlatformObj => ({
   id: makeId(),
-  type: "platform",
+  kind: "platform",
   xMm,
   yMm,
   rotationDeg: 0,
