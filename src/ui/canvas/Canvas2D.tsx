@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Layer, Stage } from "react-konva";
+import { Layer, Stage, Text } from "react-konva";
 import Grid2D from "./Grid2D";
 
 type CanvasSize = {
@@ -47,14 +47,17 @@ export default function Canvas2D() {
   const hasSize = size.width > 0 && size.height > 0;
 
   return (
-    <div className="canvas-viewport" ref={containerRef}>
+    <div className="canvas-viewport ob-canvasHost" ref={containerRef}>
       {hasSize ? (
         <Stage width={size.width} height={size.height} listening={false}>
           <Layer listening={false}>
+            <Text text="2D Canvas" x={10} y={10} fill="#111827" fontSize={14} />
             <Grid2D width={size.width} height={size.height} />
           </Layer>
         </Stage>
-      ) : null}
+      ) : (
+        <div className="canvas-placeholder">2D Canvas loading...</div>
+      )}
     </div>
   );
 }
