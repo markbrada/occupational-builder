@@ -54,7 +54,21 @@ type SnapAxisCandidate = {
   targetPoint?: { x: number; y: number };
 };
 
+type Camera = {
+  scale: number;
+  txPx: number;
+  tyPx: number;
+};
+
+type ScreenPoint = { x: number; y: number };
+
 const SNAP_THRESHOLD_MM = 20;
+const WORKSPACE_SIZE_MM = 25000;
+const HALF_WORKSPACE_MM = WORKSPACE_SIZE_MM / 2;
+const MIN_SCALE = 0.08;
+const MAX_SCALE = 10;
+const VISIBLE_RATIO = 0.2;
+const WORKSPACE_HALF_PX = mmToPx(HALF_WORKSPACE_MM);
 
 const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
   const size = getObjectBoundingBoxMm(obj);
@@ -95,6 +109,49 @@ const getGridSnappedCentre = (obj: Object2D, center: PointMm): PointMm => {
   return centerFromTopLeftMm(snappedTopLeft, bbox);
 };
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const screenToWorldPx = (point: ScreenPoint, camera: Camera) => ({
+  x: (point.x - camera.txPx) / camera.scale,
+  y: (point.y - camera.tyPx) / camera.scale,
+});
+
+const screenToWorldMm = (point: ScreenPoint, camera: Camera): PointMm => {
+  const worldPx = screenToWorldPx(point, camera);
+  return { xMm: pxToMm(worldPx.x), yMm: pxToMm(worldPx.y) };
+};
+
+const worldToScreen = (point: PointMm, camera: Camera): ScreenPoint => {
+  const px = mmToPx(point.xMm);
+  const py = mmToPx(point.yMm);
+  return {
+    x: px * camera.scale + camera.txPx,
+    y: py * camera.scale + camera.tyPx,
+  };
+};
+
+const clampCamera = (camera: Camera, viewport: CanvasSize): Camera => {
+  const baseLeft = -WORKSPACE_HALF_PX * camera.scale;
+  const baseRight = WORKSPACE_HALF_PX * camera.scale;
+  const baseTop = -WORKSPACE_HALF_PX * camera.scale;
+  const baseBottom = WORKSPACE_HALF_PX * camera.scale;
+
+  const workspaceWidthScreen = baseRight - baseLeft;
+  const workspaceHeightScreen = baseBottom - baseTop;
+  const minVisibleWidth = workspaceWidthScreen * VISIBLE_RATIO;
+  const minVisibleHeight = workspaceHeightScreen * VISIBLE_RATIO;
+
+  const minTx = minVisibleWidth - baseRight;
+  const maxTx = viewport.width - minVisibleWidth - baseLeft;
+  const minTy = minVisibleHeight - baseBottom;
+  const maxTy = viewport.height - minVisibleHeight - baseTop;
+
+  return {
+    scale: camera.scale,
+    txPx: clamp(camera.txPx, minTx, maxTx),
+    tyPx: clamp(camera.tyPx, minTy, maxTy),
+  };
+};
 export default function Canvas2D({
   activeTool,
   snapOn,
@@ -109,10 +166,14 @@ export default function Canvas2D({
 }: Canvas2DProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<any>(null);
+  const [camera, setCamera] = useState<Camera | null>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [pointer, setPointer] = useState<PointerState>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [snapGuide, setSnapGuide] = useState<SnapGuideState>({ snappedPoint: null });
+  const [spacePanning, setSpacePanning] = useState(false);
+  const isPanningRef = useRef(false);
+  const lastPanRef = useRef<ScreenPoint | null>(null);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -159,21 +220,100 @@ export default function Canvas2D({
 
   const hasSize = size.width > 0 && size.height > 0;
 
+  useEffect(() => {
+    if (!hasSize) return;
+    setCamera((current) => {
+      const baseWorkspacePx = mmToPx(WORKSPACE_SIZE_MM);
+      const fitScale = Math.min(size.width / (baseWorkspacePx * 1.1), size.height / (baseWorkspacePx * 1.1));
+      const scale = clamp(current?.scale ?? fitScale, MIN_SCALE, MAX_SCALE);
+      const txPx = current?.txPx ?? size.width / 2;
+      const tyPx = current?.tyPx ?? size.height / 2;
+      const next = clampCamera({ scale, txPx, tyPx }, size);
+      if (current && current.scale === next.scale && current.txPx === next.txPx && current.tyPx === next.tyPx) {
+        return current;
+      }
+      return next;
+    });
+  }, [hasSize, size]);
+
+  useEffect(() => {
+    if (!hasSize || !camera) return;
+    setCamera((current) => {
+      if (!current) return camera;
+      const clamped = clampCamera(current, size);
+      if (clamped.scale === current.scale && clamped.txPx === current.txPx && clamped.tyPx === current.tyPx) {
+        return current;
+      }
+      return clamped;
+    });
+  }, [camera, hasSize, size]);
+
+  useEffect(() => {
+    const handleKeyDown = (evt: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const activeTag = (activeEl?.tagName || "").toLowerCase();
+      const isTyping = ["input", "textarea", "select"].includes(activeTag) || activeEl?.isContentEditable;
+      if (isTyping) return;
+      if (evt.code === "Space") {
+        setSpacePanning(true);
+      }
+    };
+
+    const handleKeyUp = (evt: KeyboardEvent) => {
+      if (evt.code === "Space") {
+        setSpacePanning(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
+
   const pointerMm: PointMm | null = useMemo(() => {
-    if (!pointer) return null;
-    return { xMm: pxToMm(pointer.x), yMm: pxToMm(pointer.y) };
-  }, [pointer]);
+    if (!pointer || !camera) return null;
+    return screenToWorldMm(pointer, camera);
+  }, [camera, pointer]);
+
+  const pointerMmClamped: PointMm | null = useMemo(() => {
+    if (!pointerMm) return null;
+    return {
+      xMm: clamp(pointerMm.xMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
+      yMm: clamp(pointerMm.yMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
+    };
+  }, [pointerMm]);
 
   const desiredAnchorMm: PointMm | null = useMemo(() => {
-    if (!pointerMm) return null;
-    if (!snapOn) return pointerMm;
-    return { xMm: snapMm(pointerMm.xMm), yMm: snapMm(pointerMm.yMm) };
-  }, [pointerMm, snapOn]);
+    if (!pointerMmClamped) return null;
+    if (!snapOn) return pointerMmClamped;
+    return { xMm: snapMm(pointerMmClamped.xMm), yMm: snapMm(pointerMmClamped.yMm) };
+  }, [pointerMmClamped, snapOn]);
 
   const snapMarkerPx = useMemo(() => {
     if (!desiredAnchorMm) return null;
     return { x: mmToPx(desiredAnchorMm.xMm), y: mmToPx(desiredAnchorMm.yMm) };
   }, [desiredAnchorMm]);
+
+  const worldGroupProps = camera
+    ? { x: camera.txPx, y: camera.tyPx, scaleX: camera.scale, scaleY: camera.scale }
+    : { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+
+  const workspaceClip = {
+    clipX: -WORKSPACE_HALF_PX,
+    clipY: -WORKSPACE_HALF_PX,
+    clipWidth: WORKSPACE_HALF_PX * 2,
+    clipHeight: WORKSPACE_HALF_PX * 2,
+  };
+
+  const snapStrokeWidth = camera ? 1 / camera.scale : 1;
+  const clampedSnapX =
+    snapGuide.snappedX !== undefined ? clamp(mmToPx(snapGuide.snappedX), -WORKSPACE_HALF_PX, WORKSPACE_HALF_PX) : null;
+  const clampedSnapY =
+    snapGuide.snappedY !== undefined ? clamp(mmToPx(snapGuide.snappedY), -WORKSPACE_HALF_PX, WORKSPACE_HALF_PX) : null;
+  const snapPointRadius = camera ? 4 / camera.scale : 4;
 
   const getPlacementCentreFromAnchor = (tool: Tool, anchor: PointMm): PointMm | null => {
     const bbox = getDefaultBoundingBoxMm(tool);
@@ -205,28 +345,66 @@ export default function Canvas2D({
   }, [activeTool, desiredAnchorMm]);
 
   const handleStagePointerMove = () => {
-    if (!stageRef.current) return;
+    if (!stageRef.current || !camera) return;
     const pos = stageRef.current.getPointerPosition();
-    if (pos) {
-      setPointer({ x: pos.x, y: pos.y });
+    if (!pos) return;
+
+    if (isPanningRef.current) {
+      const last = lastPanRef.current ?? pos;
+      const dx = pos.x - last.x;
+      const dy = pos.y - last.y;
+      setCamera((current) => {
+        if (!current) return current;
+        const next = clampCamera({ ...current, txPx: current.txPx + dx, tyPx: current.tyPx + dy }, size);
+        return next;
+      });
+      lastPanRef.current = pos;
+    }
+
+    setPointer({ x: pos.x, y: pos.y });
+  };
+
+  const stopPanning = () => {
+    isPanningRef.current = false;
+    lastPanRef.current = null;
+    if (stageRef.current) {
+      stageRef.current.container().style.cursor = "";
     }
   };
 
+  const handleStageMouseUp = () => {
+    stopPanning();
+  };
+
   const handleStageLeave = () => {
+    stopPanning();
     setPointer(null);
     setHoverId(null);
   };
 
   const handleStageMouseDown = (evt: any) => {
-    if (!stageRef.current) return;
+    if (!stageRef.current || !camera) return;
     const pos = stageRef.current.getPointerPosition();
     if (!pos) return;
+
+    const isRightButton = evt.evt?.button === 2;
+    const canPan = isRightButton || (spacePanning && evt.evt?.button === 0);
+    if (canPan) {
+      isPanningRef.current = true;
+      lastPanRef.current = pos;
+      stageRef.current.container().style.cursor = "grab";
+      return;
+    }
 
     const isStageClick = evt.target === stageRef.current || evt.target === stageRef.current.getStage();
 
     if ((activeTool === "ramp" || activeTool === "platform") && isStageClick) {
-      const anchor: PointMm = { xMm: pxToMm(pos.x), yMm: pxToMm(pos.y) };
-      const centre = getPlacementCentreFromAnchor(activeTool, anchor);
+      const anchor = screenToWorldMm(pos, camera);
+      const clampedAnchor = {
+        xMm: clamp(anchor.xMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
+        yMm: clamp(anchor.yMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
+      };
+      const centre = getPlacementCentreFromAnchor(activeTool, clampedAnchor);
       if (!centre) return;
       onPlaceAt(activeTool, centre.xMm, centre.yMm);
       return;
@@ -242,12 +420,31 @@ export default function Canvas2D({
     evt.cancelBubble = true;
   };
 
+  const handleWheel = (evt: any) => {
+    if (!stageRef.current || !camera) return;
+    evt.evt.preventDefault();
+    const pointerPosition = stageRef.current.getPointerPosition();
+    if (!pointerPosition) return;
+    const scaleBy = evt.evt.deltaY < 0 ? 1.1 : 0.9;
+    setCamera((current) => {
+      if (!current) return current;
+      const worldPosPx = screenToWorldPx(pointerPosition, current);
+      const nextScale = clamp(current.scale * scaleBy, MIN_SCALE, MAX_SCALE);
+      const nextTx = pointerPosition.x - worldPosPx.x * nextScale;
+      const nextTy = pointerPosition.y - worldPosPx.y * nextScale;
+      return clampCamera({ scale: nextScale, txPx: nextTx, tyPx: nextTy }, size);
+    });
+  };
+
   const handleContextMenu = (evt: any) => {
     evt.evt.preventDefault();
     onSetActiveTool("none");
   };
 
   const handleObjectPointerDown = (evt: any, obj: Object2D) => {
+    if (evt?.evt?.button === 2 || spacePanning) {
+      return;
+    }
     onSelect(obj.id);
     if (activeTool === "delete") {
       onDeleteObject(obj.id);
@@ -272,8 +469,7 @@ export default function Canvas2D({
     }, undefined);
   };
 
-  const getObjectSnap = (obj: Object2D, proposedPx: { x: number; y: number }) => {
-    const proposedCentre: PointMm = { xMm: pxToMm(proposedPx.x), yMm: pxToMm(proposedPx.y) };
+  const getObjectSnap = (obj: Object2D, proposedCentre: PointMm) => {
     if (!snapOn) {
       setSnapGuide({ snappedPoint: null });
       return proposedCentre;
@@ -375,14 +571,13 @@ export default function Canvas2D({
     if (stageRef.current) {
       stageRef.current.container().style.cursor = "";
     }
-    const xPx = evt.target.x();
-    const yPx = evt.target.y();
-    const snappedCentre = getObjectSnap(obj, { x: xPx, y: yPx });
-    const snappedPx = { x: mmToPx(snappedCentre.xMm), y: mmToPx(snappedCentre.yMm) };
-    evt.target.position(snappedPx);
-    const xMm = snappedCentre.xMm;
-    const yMm = snappedCentre.yMm;
-    onUpdateObject(obj.id, (current) => ({ ...current, xMm, yMm }));
+    if (!camera) return;
+    const absolute = evt.target.getAbsolutePosition();
+    const proposedCentre = screenToWorldMm(absolute, camera);
+    const snappedCentre = getObjectSnap(obj, proposedCentre);
+    const snappedStage = worldToScreen(snappedCentre, camera);
+    evt.target.setAbsolutePosition(snappedStage);
+    onUpdateObject(obj.id, (current) => ({ ...current, xMm: snappedCentre.xMm, yMm: snappedCentre.yMm }));
     setSnapGuide({ snappedPoint: null });
   };
 
@@ -395,10 +590,12 @@ export default function Canvas2D({
   const objectNodes = objects.map((obj) => {
     const isSelected = obj.id === selectedId;
     const isHover = obj.id === hoverId;
-    const draggable = isSelected && !obj.locked;
+    const draggable = isSelected && !obj.locked && !spacePanning;
     const dragBoundFunc = (pos: any) => {
-      const snappedCentre = getObjectSnap(obj, pos);
-      return { x: mmToPx(snappedCentre.xMm), y: mmToPx(snappedCentre.yMm) };
+      if (!camera) return pos;
+      const proposedCentre = screenToWorldMm(pos, camera);
+      const snappedCentre = getObjectSnap(obj, proposedCentre);
+      return worldToScreen(snappedCentre, camera);
     };
     const hoverHandlers = {
       onMouseEnter: () => setHoverId(obj.id),
@@ -438,66 +635,96 @@ export default function Canvas2D({
 
   return (
     <div className="ob-canvasHost" ref={containerRef} data-tool={activeTool}>
-      {hasSize ? (
-        <Stage
-          ref={stageRef}
-          width={size.width}
-          height={size.height}
-          onMouseMove={handleStagePointerMove}
-          onTouchMove={handleStagePointerMove}
-          onMouseLeave={handleStageLeave}
-          onTouchEnd={handleStageLeave}
-          onContextMenu={handleContextMenu}
-          onMouseDown={handleStageMouseDown}
-        >
-          <Layer listening={false}>
-            <Grid2D width={size.width} height={size.height} />
-          </Layer>
-
-          <Layer>{objectNodes}</Layer>
-
-          <Layer listening={false}>
-            {snapGuide.snappedX !== undefined && (
-              <Line
-                points={[mmToPx(snapGuide.snappedX), 0, mmToPx(snapGuide.snappedX), size.height]}
-                stroke="rgba(239,68,68,0.5)"
-                strokeWidth={1}
-              />
-            )}
-            {snapGuide.snappedY !== undefined && (
-              <Line
-                points={[0, mmToPx(snapGuide.snappedY), size.width, mmToPx(snapGuide.snappedY)]}
-                stroke="rgba(239,68,68,0.5)"
-                strokeWidth={1}
-              />
-            )}
-            {snapGuide.snappedPoint && (
-              <Circle x={mmToPx(snapGuide.snappedPoint.xMm)} y={mmToPx(snapGuide.snappedPoint.yMm)} radius={4} fill="rgba(239,68,68,0.5)" />
-            )}
-          </Layer>
-
-          <Layer listening={false}>
-            {pointer && (
-              <>
-                <Line points={[pointer.x, 0, pointer.x, size.height]} stroke="#cbd5e1" dash={[4, 4]} />
-                <Line points={[0, pointer.y, size.width, pointer.y]} stroke="#cbd5e1" dash={[4, 4]} />
-              </>
-            )}
-            {snapMarkerPx && snapOn && <Circle x={snapMarkerPx.x} y={snapMarkerPx.y} radius={4} fill="#0ea5e9" opacity={0.8} />}
-            {ghostRamp && (
-              <ShapeRamp2D obj={ghostRamp} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
-            )}
-            {ghostPlatform && (
-              <ShapePlatform2D obj={ghostPlatform} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
-            )}
-            {hudLabel && (
-              <Group x={hudLabel.x} y={hudLabel.y}>
-                <Rect width={220} height={26} fill="rgba(17,24,39,0.8)" cornerRadius={6} />
-                <Text text={hudLabel.text} x={8} y={6} fontSize={12} fill="#e5e7eb" />
+      {hasSize && camera ? (
+        <>
+          <Stage
+            ref={stageRef}
+            width={size.width}
+            height={size.height}
+            onMouseMove={handleStagePointerMove}
+            onTouchMove={handleStagePointerMove}
+            onMouseUp={handleStageMouseUp}
+            onTouchEnd={handleStageMouseUp}
+            onMouseLeave={handleStageLeave}
+            onContextMenu={handleContextMenu}
+            onMouseDown={handleStageMouseDown}
+            onWheel={handleWheel}
+          >
+            <Layer listening={false}>
+              <Group {...worldGroupProps}>
+                <Grid2D cameraScale={camera.scale} workspaceSizeMm={WORKSPACE_SIZE_MM} />
               </Group>
+            </Layer>
+
+            <Layer>
+              <Group {...worldGroupProps}>{objectNodes}</Group>
+            </Layer>
+
+            <Layer listening={false}>
+              <Group {...worldGroupProps} {...workspaceClip}>
+                {clampedSnapX !== null && (
+                  <Line
+                    points={[clampedSnapX, -WORKSPACE_HALF_PX, clampedSnapX, WORKSPACE_HALF_PX]}
+                    stroke="rgba(239,68,68,0.5)"
+                    strokeWidth={snapStrokeWidth}
+                  />
+                )}
+                {clampedSnapY !== null && (
+                  <Line
+                    points={[-WORKSPACE_HALF_PX, clampedSnapY, WORKSPACE_HALF_PX, clampedSnapY]}
+                    stroke="rgba(239,68,68,0.5)"
+                    strokeWidth={snapStrokeWidth}
+                  />
+                )}
+                {snapGuide.snappedPoint && (
+                  <Circle
+                    x={mmToPx(snapGuide.snappedPoint.xMm)}
+                    y={mmToPx(snapGuide.snappedPoint.yMm)}
+                    radius={snapPointRadius}
+                    fill="rgba(239,68,68,0.5)"
+                  />
+                )}
+                {snapMarkerPx && snapOn && <Circle x={snapMarkerPx.x} y={snapMarkerPx.y} radius={snapPointRadius} fill="#0ea5e9" opacity={0.85} />}
+                {ghostRamp && (
+                  <ShapeRamp2D obj={ghostRamp} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
+                )}
+                {ghostPlatform && (
+                  <ShapePlatform2D obj={ghostPlatform} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
+                )}
+                {pointerMmClamped && (
+                  <>
+                    <Line
+                      points={[-WORKSPACE_HALF_PX, mmToPx(pointerMmClamped.yMm), WORKSPACE_HALF_PX, mmToPx(pointerMmClamped.yMm)]}
+                      stroke="#cbd5e1"
+                      dash={[4, 4]}
+                      strokeWidth={snapStrokeWidth}
+                    />
+                    <Line
+                      points={[mmToPx(pointerMmClamped.xMm), -WORKSPACE_HALF_PX, mmToPx(pointerMmClamped.xMm), WORKSPACE_HALF_PX]}
+                      stroke="#cbd5e1"
+                      dash={[4, 4]}
+                      strokeWidth={snapStrokeWidth}
+                    />
+                  </>
+                )}
+              </Group>
+              {hudLabel && (
+                <Group x={hudLabel.x} y={hudLabel.y} listening={false}>
+                  <Rect width={220} height={26} fill="rgba(17,24,39,0.8)" cornerRadius={6} />
+                  <Text text={hudLabel.text} x={8} y={6} fontSize={12} fill="#e5e7eb" />
+                </Group>
+              )}
+            </Layer>
+          </Stage>
+          <div className="ob-canvasHud">
+            <div className="ob-canvasHud__item">Zoom: {Math.round(camera.scale * 100)}%</div>
+            {pointerMmClamped && (
+              <div className="ob-canvasHud__item">
+                Cursor: {Math.round(pointerMmClamped.xMm)}mm, {Math.round(pointerMmClamped.yMm)}mm
+              </div>
             )}
-          </Layer>
-        </Stage>
+          </div>
+        </>
       ) : (
         <div className="canvas-placeholder">2D Canvas loading...</div>
       )}

@@ -170,6 +170,9 @@ Parameters:
 
 ## Changelog
 
+### v0.3.5
+- Added CAD-style pan/zoom with bounded 25m workspace and crisp adaptive grid.
+
 ### v0.3.4
 - Added undo/redo with toolbar buttons and keyboard shortcuts.
 
