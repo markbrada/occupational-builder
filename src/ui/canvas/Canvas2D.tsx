@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import { Object2D, PlatformObj, RampObj, Tool } from "../../model/types";
 import { newPlatformAt, newRampAt } from "../../model/defaults";
+import { centerFromTopLeftMm, getDefaultBoundingBoxMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
 import { mmToPx, pxToMm, snapMm } from "../../model/units";
 import Grid2D from "./Grid2D";
 import ShapePlatform2D from "./ShapePlatform2D";
@@ -26,6 +27,7 @@ type Canvas2DProps = {
 };
 
 type PointerState = { x: number; y: number } | null;
+type PointMm = { xMm: number; yMm: number };
 
 export default function Canvas2D({
   activeTool,
@@ -90,39 +92,50 @@ export default function Canvas2D({
 
   const hasSize = size.width > 0 && size.height > 0;
 
-  const pointerMm = useMemo(() => {
+  const pointerMm: PointMm | null = useMemo(() => {
     if (!pointer) return null;
-    return { x: pxToMm(pointer.x), y: pxToMm(pointer.y) };
+    return { xMm: pxToMm(pointer.x), yMm: pxToMm(pointer.y) };
   }, [pointer]);
 
-  const snappedPointerMm = useMemo(() => {
+  const desiredAnchorMm: PointMm | null = useMemo(() => {
     if (!pointerMm) return null;
     if (!snapOn) return pointerMm;
-    return { x: snapMm(pointerMm.x), y: snapMm(pointerMm.y) };
+    return { xMm: snapMm(pointerMm.xMm), yMm: snapMm(pointerMm.yMm) };
   }, [pointerMm, snapOn]);
 
   const snapMarkerPx = useMemo(() => {
-    if (!snappedPointerMm) return null;
-    return { x: mmToPx(snappedPointerMm.x), y: mmToPx(snappedPointerMm.y) };
-  }, [snappedPointerMm]);
+    if (!desiredAnchorMm) return null;
+    return { x: mmToPx(desiredAnchorMm.xMm), y: mmToPx(desiredAnchorMm.yMm) };
+  }, [desiredAnchorMm]);
+
+  const getPlacementCentreFromAnchor = (tool: Tool, anchor: PointMm): PointMm | null => {
+    const bbox = getDefaultBoundingBoxMm(tool);
+    if (!bbox) return null;
+    const snappedTopLeft = snapOn ? { xMm: snapMm(anchor.xMm), yMm: snapMm(anchor.yMm) } : anchor;
+    return centerFromTopLeftMm(snappedTopLeft, bbox);
+  };
 
   const ghostRamp: RampObj | null = useMemo(() => {
-    if (!snappedPointerMm || activeTool !== "ramp") return null;
+    if (!desiredAnchorMm || activeTool !== "ramp") return null;
+    const centre = getPlacementCentreFromAnchor("ramp", desiredAnchorMm);
+    if (!centre) return null;
     return {
-      ...newRampAt(snappedPointerMm.x, snappedPointerMm.y),
+      ...newRampAt(centre.xMm, centre.yMm),
       id: "ghost-ramp",
       locked: true,
     };
-  }, [activeTool, snappedPointerMm]);
+  }, [activeTool, desiredAnchorMm]);
 
   const ghostPlatform: PlatformObj | null = useMemo(() => {
-    if (!snappedPointerMm || activeTool !== "platform") return null;
+    if (!desiredAnchorMm || activeTool !== "platform") return null;
+    const centre = getPlacementCentreFromAnchor("platform", desiredAnchorMm);
+    if (!centre) return null;
     return {
-      ...newPlatformAt(snappedPointerMm.x, snappedPointerMm.y),
+      ...newPlatformAt(centre.xMm, centre.yMm),
       id: "ghost-platform",
       locked: true,
     };
-  }, [activeTool, snappedPointerMm]);
+  }, [activeTool, desiredAnchorMm]);
 
   const handleStagePointerMove = () => {
     if (!stageRef.current) return;
@@ -145,9 +158,10 @@ export default function Canvas2D({
     const isStageClick = evt.target === stageRef.current || evt.target === stageRef.current.getStage();
 
     if ((activeTool === "ramp" || activeTool === "platform") && isStageClick) {
-      const xMm = snapOn ? snapMm(pxToMm(pos.x)) : pxToMm(pos.x);
-      const yMm = snapOn ? snapMm(pxToMm(pos.y)) : pxToMm(pos.y);
-      onPlaceAt(activeTool, xMm, yMm);
+      const anchor: PointMm = { xMm: pxToMm(pos.x), yMm: pxToMm(pos.y) };
+      const centre = getPlacementCentreFromAnchor(activeTool, anchor);
+      if (!centre) return;
+      onPlaceAt(activeTool, centre.xMm, centre.yMm);
       return;
     }
 
@@ -181,15 +195,27 @@ export default function Canvas2D({
     }
   };
 
+  const getSnappedPositionPx = (obj: Object2D, proposedPx: { x: number; y: number }) => {
+    if (!snapOn) return proposedPx;
+
+    const centreMm = { xMm: pxToMm(proposedPx.x), yMm: pxToMm(proposedPx.y) };
+    const bbox = getObjectBoundingBoxMm(obj);
+    const topLeft = topLeftFromCenterMm(centreMm, bbox);
+    const snappedTopLeft = { xMm: snapMm(topLeft.xMm), yMm: snapMm(topLeft.yMm) };
+    const snappedCentre = centerFromTopLeftMm(snappedTopLeft, bbox);
+    return { x: mmToPx(snappedCentre.xMm), y: mmToPx(snappedCentre.yMm) };
+  };
+
   const handleObjectDragEnd = (evt: any, obj: Object2D) => {
     if (stageRef.current) {
       stageRef.current.container().style.cursor = "";
     }
     const xPx = evt.target.x();
     const yPx = evt.target.y();
-    const xMm = snapOn ? snapMm(pxToMm(xPx)) : pxToMm(xPx);
-    const yMm = snapOn ? snapMm(pxToMm(yPx)) : pxToMm(yPx);
-    evt.target.position({ x: mmToPx(xMm), y: mmToPx(yMm) });
+    const snapped = getSnappedPositionPx(obj, { x: xPx, y: yPx });
+    evt.target.position(snapped);
+    const xMm = pxToMm(snapped.x);
+    const yMm = pxToMm(snapped.y);
     onUpdateObject(obj.id, (current) => ({ ...current, xMm, yMm }));
   };
 
@@ -203,6 +229,7 @@ export default function Canvas2D({
     const isSelected = obj.id === selectedId;
     const isHover = obj.id === hoverId;
     const draggable = isSelected && !obj.locked;
+    const dragBoundFunc = (pos: any) => getSnappedPositionPx(obj, pos);
     const hoverHandlers = {
       onMouseEnter: () => setHoverId(obj.id),
       onMouseLeave: () => setHoverId((current) => (current === obj.id ? null : current)),
@@ -215,6 +242,7 @@ export default function Canvas2D({
         hover: isHover,
         activeTool,
         draggable,
+        dragBoundFunc,
         onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
         onDragStart: handleObjectDragStart,
         onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
@@ -229,6 +257,7 @@ export default function Canvas2D({
       hover: isHover,
       activeTool,
       draggable,
+      dragBoundFunc,
       onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
       onDragStart: handleObjectDragStart,
       onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),

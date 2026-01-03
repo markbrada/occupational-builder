@@ -8,6 +8,7 @@ type Props = {
   hover: boolean;
   activeTool: Tool;
   draggable: boolean;
+  dragBoundFunc?: (pos: any) => any;
   ghost?: boolean;
   onPointerDown?: (evt: any) => void;
   onMouseEnter?: () => void;
@@ -22,6 +23,7 @@ export default function ShapePlatform2D({
   hover,
   activeTool,
   draggable,
+  dragBoundFunc,
   ghost = false,
   onPointerDown,
   onMouseEnter,
@@ -54,6 +56,7 @@ export default function ShapePlatform2D({
       onMouseLeave={onMouseLeave}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      dragBoundFunc={dragBoundFunc}
       rotation={obj.rotationDeg}
       listening={!ghost}
     >
@@ -65,7 +68,6 @@ export default function ShapePlatform2D({
         fill={fill}
         stroke={stroke}
         strokeWidth={selected ? 3 : 2}
-        cornerRadius={6}
         opacity={opacity}
       />
     </Group>

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { newPlatformAt, newRampAt } from "../model/defaults";
-import { SNAP_MM } from "../model/constants";
 import { Object2D, Tool } from "../model/types";
+import { centerFromTopLeftMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../model/geometry";
 import { PersistedProject, loadProject, saveProject } from "../model/storage";
+import { GRID_STEP_MM, snapMm } from "../model/units";
 import Canvas2D from "../ui/canvas/Canvas2D";
 import Preview3D from "../ui/preview/Preview3D";
 import Inspector from "../ui/layout/Inspector";
@@ -18,6 +19,8 @@ const statusText: Record<Tool, string> = {
   platform: "Platform: Click on empty canvas to place once. Esc to cancel.",
   delete: "Delete: Click an object to delete, or Esc to cancel.",
 };
+
+const FINE_NUDGE_MM = 10;
 
 export default function AppShell() {
   const [mode, setMode] = useState<EditMode>("2d");
@@ -179,11 +182,21 @@ export default function AppShell() {
         setObjects((prev) => {
           const next = prev.map((obj) => {
             if (obj.id !== selectedId || obj.locked) return obj;
-            if (event.key === "ArrowUp") return { ...obj, yMm: obj.yMm - SNAP_MM };
-            if (event.key === "ArrowDown") return { ...obj, yMm: obj.yMm + SNAP_MM };
-            if (event.key === "ArrowLeft") return { ...obj, xMm: obj.xMm - SNAP_MM };
-            if (event.key === "ArrowRight") return { ...obj, xMm: obj.xMm + SNAP_MM };
-            return obj;
+            const bbox = getObjectBoundingBoxMm(obj);
+            const currentTopLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, bbox);
+            const nudgeStep = snapOn ? GRID_STEP_MM : FINE_NUDGE_MM;
+            const offset = { xMm: 0, yMm: 0 };
+            if (event.key === "ArrowUp") offset.yMm = -nudgeStep;
+            if (event.key === "ArrowDown") offset.yMm = nudgeStep;
+            if (event.key === "ArrowLeft") offset.xMm = -nudgeStep;
+            if (event.key === "ArrowRight") offset.xMm = nudgeStep;
+            if (offset.xMm === 0 && offset.yMm === 0) return obj;
+            const nextTopLeft = { xMm: currentTopLeft.xMm + offset.xMm, yMm: currentTopLeft.yMm + offset.yMm };
+            const snappedTopLeft = snapOn
+              ? { xMm: snapMm(nextTopLeft.xMm), yMm: snapMm(nextTopLeft.yMm) }
+              : nextTopLeft;
+            const nextCenter = centerFromTopLeftMm(snappedTopLeft, bbox);
+            return { ...obj, xMm: nextCenter.xMm, yMm: nextCenter.yMm };
           });
           scheduleSave({ objects: next });
           return next;
@@ -193,7 +206,7 @@ export default function AppShell() {
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selectedId, scheduleSave, handleDeleteObject]);
+  }, [selectedId, scheduleSave, handleDeleteObject, snapOn]);
 
   return (
     <div className="ob-root">

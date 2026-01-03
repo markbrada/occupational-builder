@@ -170,6 +170,11 @@ Parameters:
 
 ## Changelog
 
+### v0.3.1
+- Overhauled 2D grid/snapping with 100mm minor and 1000mm major lines plus top-left anchored placement and dragging tied to the grid.
+- Defaulted Snap to ON, applied 100mm live snapping for drag, placement, and arrow nudging (10mm when off), and preserved centre-based storage.
+- Simplified ramp/platform visuals with sharp corners and maintained build health.
+
 ### v0.3.0
 - Added debounced autosave to localStorage with schema versioning and timestamped payloads.
 - Restored saved projects on load while hydrating objects, tools, mode, and snap state.

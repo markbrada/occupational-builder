@@ -8,7 +8,7 @@ type Grid2DProps = {
 };
 
 const MINOR_SPACING_MM = GRID_STEP_MM;
-const MAJOR_SPACING_MM = GRID_STEP_MM * 5;
+const MAJOR_SPACING_MM = GRID_STEP_MM * 10;
 const MINOR_SPACING = mmToPx(MINOR_SPACING_MM);
 const MAJOR_SPACING = mmToPx(MAJOR_SPACING_MM);
 
@@ -23,8 +23,8 @@ export default function Grid2D({ width, height }: Grid2DProps) {
         <Line
           key={`v-${columnIndex}`}
           points={[x, 0, x, height]}
-          stroke={isMajor ? "rgba(148, 163, 184, 0.32)" : "rgba(148, 163, 184, 0.14)"}
-          strokeWidth={isMajor ? 1 : 0.75}
+          stroke={isMajor ? "rgba(148, 163, 184, 0.24)" : "rgba(148, 163, 184, 0.1)"}
+          strokeWidth={isMajor ? 0.9 : 0.5}
           listening={false}
         />,
       );
@@ -38,8 +38,8 @@ export default function Grid2D({ width, height }: Grid2DProps) {
         <Line
           key={`h-${rowIndex}`}
           points={[0, y, width, y]}
-          stroke={isMajor ? "rgba(148, 163, 184, 0.32)" : "rgba(148, 163, 184, 0.14)"}
-          strokeWidth={isMajor ? 1 : 0.75}
+          stroke={isMajor ? "rgba(148, 163, 184, 0.24)" : "rgba(148, 163, 184, 0.1)"}
+          strokeWidth={isMajor ? 0.9 : 0.5}
           listening={false}
         />,
       );
