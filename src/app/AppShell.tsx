@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { newPlatformAt, newRampAt } from "../model/defaults";
 import { SNAP_MM } from "../model/constants";
 import { Object2D, Tool } from "../model/types";
+import { PersistedProject, loadProject, saveProject } from "../model/storage";
 import Canvas2D from "../ui/canvas/Canvas2D";
 import Preview3D from "../ui/preview/Preview3D";
 import Inspector from "../ui/layout/Inspector";
@@ -25,7 +26,130 @@ export default function AppShell() {
   const [objects, setObjects] = useState<Object2D[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const handleToggleSnap = () => setSnapOn((prev) => !prev);
+  const saveTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const restored = loadProject();
+    if (restored) {
+      setMode(restored.mode);
+      setActiveTool(restored.activeTool);
+      setSnapOn(restored.snapOn);
+      setObjects(restored.objects);
+      setSelectedId(restored.selectedId);
+    }
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const scheduleSave = useCallback(
+    (overrides: Partial<PersistedProject> = {}) => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+
+      const snapshot: PersistedProject = {
+        mode,
+        activeTool,
+        snapOn,
+        objects,
+        selectedId,
+        ...overrides,
+      };
+
+      saveTimerRef.current = window.setTimeout(() => {
+        saveProject(snapshot);
+        saveTimerRef.current = null;
+      }, 200);
+    },
+    [mode, activeTool, snapOn, objects, selectedId],
+  );
+
+  const handleToggleSnap = () => {
+    setSnapOn((prev) => {
+      const next = !prev;
+      scheduleSave({ snapOn: next });
+      return next;
+    });
+  };
+
+  const handleSetMode = (nextMode: EditMode) => {
+    setMode(nextMode);
+    scheduleSave({ mode: nextMode });
+  };
+
+  const status = useMemo(() => statusText[activeTool], [activeTool]);
+
+  const handlePlaceAt = (tool: Tool, xMm: number, yMm: number) => {
+    if (tool === "ramp") {
+      const ramp = newRampAt(xMm, yMm);
+      setObjects((prev) => {
+        const next = [...prev, ramp];
+        scheduleSave({ objects: next, selectedId: ramp.id, activeTool: "none" });
+        return next;
+      });
+      setSelectedId(ramp.id);
+    }
+    if (tool === "platform") {
+      const platform = newPlatformAt(xMm, yMm);
+      setObjects((prev) => {
+        const next = [...prev, platform];
+        scheduleSave({ objects: next, selectedId: platform.id, activeTool: "none" });
+        return next;
+      });
+      setSelectedId(platform.id);
+    }
+    setActiveTool("none");
+  };
+
+  const handleUpdateObject = (id: string, updater: (obj: Object2D) => Object2D) => {
+    setObjects((prev) => {
+      const next = prev.map((obj) => (obj.id === id ? updater(obj) : obj));
+      scheduleSave({ objects: next });
+      return next;
+    });
+  };
+
+  const handleDeleteObject = (id: string) => {
+    setObjects((prev) => {
+      const nextObjects = prev.filter((obj) => obj.id !== id);
+      setSelectedId((currentSelected) => {
+        const nextSelected = currentSelected === id ? null : currentSelected;
+        scheduleSave({ objects: nextObjects, selectedId: nextSelected });
+        return nextSelected;
+      });
+      return nextObjects;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedId((prev) => {
+      if (prev !== null) {
+        scheduleSave({ selectedId: null });
+      }
+      return null;
+    });
+  };
+
+  const handleRotateSelected = (delta: number) => {
+    if (!selectedId) return;
+    setObjects((prev) => {
+      const next = prev.map((obj) => {
+        if (obj.id !== selectedId) return obj;
+        const startingRotation = snapOn ? Math.round(obj.rotationDeg / 90) * 90 : obj.rotationDeg;
+        const nextRotation = ((startingRotation + delta) % 360 + 360) % 360;
+        return { ...obj, rotationDeg: nextRotation };
+      });
+      scheduleSave({ objects: next });
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -52,68 +176,31 @@ export default function AppShell() {
       if (event.key.startsWith("Arrow")) {
         event.preventDefault();
         if (!selectedId) return;
-        setObjects((prev) =>
-          prev.map((obj) => {
+        setObjects((prev) => {
+          const next = prev.map((obj) => {
             if (obj.id !== selectedId || obj.locked) return obj;
             if (event.key === "ArrowUp") return { ...obj, yMm: obj.yMm - SNAP_MM };
             if (event.key === "ArrowDown") return { ...obj, yMm: obj.yMm + SNAP_MM };
             if (event.key === "ArrowLeft") return { ...obj, xMm: obj.xMm - SNAP_MM };
             if (event.key === "ArrowRight") return { ...obj, xMm: obj.xMm + SNAP_MM };
             return obj;
-          }),
-        );
+          });
+          scheduleSave({ objects: next });
+          return next;
+        });
       }
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selectedId]);
-
-  const status = useMemo(() => statusText[activeTool], [activeTool]);
-
-  const handlePlaceAt = (tool: Tool, xMm: number, yMm: number) => {
-    if (tool === "ramp") {
-      const ramp = newRampAt(xMm, yMm);
-      setObjects((prev) => [...prev, ramp]);
-      setSelectedId(ramp.id);
-    }
-    if (tool === "platform") {
-      const platform = newPlatformAt(xMm, yMm);
-      setObjects((prev) => [...prev, platform]);
-      setSelectedId(platform.id);
-    }
-    setActiveTool("none");
-  };
-
-  const handleUpdateObject = (id: string, updater: (obj: Object2D) => Object2D) => {
-    setObjects((prev) => prev.map((obj) => (obj.id === id ? updater(obj) : obj)));
-  };
-
-  const handleDeleteObject = (id: string) => {
-    setObjects((prev) => prev.filter((obj) => obj.id !== id));
-    setSelectedId((prev) => (prev === id ? null : prev));
-  };
-
-  const handleClearSelection = () => setSelectedId(null);
-
-  const handleRotateSelected = (delta: number) => {
-    if (!selectedId) return;
-    setObjects((prev) =>
-      prev.map((obj) => {
-        if (obj.id !== selectedId) return obj;
-        const startingRotation = snapOn ? Math.round(obj.rotationDeg / 90) * 90 : obj.rotationDeg;
-        const nextRotation = ((startingRotation + delta) % 360 + 360) % 360;
-        return { ...obj, rotationDeg: nextRotation };
-      }),
-    );
-  };
+  }, [selectedId, scheduleSave, handleDeleteObject]);
 
   return (
     <div className="ob-root">
       <div className="ob-top">
         <TopBar
           mode={mode}
-          onSetMode={setMode}
+          onSetMode={handleSetMode}
           canRotate={Boolean(selectedId)}
           onRotateLeft={() => handleRotateSelected(-90)}
           onRotateRight={() => handleRotateSelected(90)}

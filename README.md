@@ -170,6 +170,11 @@ Parameters:
 
 ## Changelog
 
+### v0.3.0
+- Added debounced autosave to localStorage with schema versioning and timestamped payloads.
+- Restored saved projects on load while hydrating objects, tools, mode, and snap state.
+- Triggered saves after committed edits including placement, deletion, drag/resize ends, rotation, and snap toggles.
+
 ### v0.2.6
 - Centralised millimetre↔pixel conversions with snapping helpers and grid-aware scaling.
 - Updated ramp/platform rendering to use centre-based groups with rotation and drag snapping in mm space.
