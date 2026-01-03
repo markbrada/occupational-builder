@@ -4,7 +4,6 @@ import type { Group as KonvaGroup } from "konva/lib/Group";
 import type { Transformer as KonvaTransformer } from "konva/lib/shapes/Transformer";
 import { Object2D, PlatformObj, RampObj, Tool } from "../../model/types";
 import { newPlatformAt, newRampAt } from "../../model/defaults";
-import { findAlignmentDeltasMm } from "../../model/geometry";
 import { mmToPx, pxToMm, snapMm } from "../../model/units";
 import Grid2D from "./Grid2D";
 import ShapePlatform2D from "./ShapePlatform2D";
@@ -29,26 +28,6 @@ type Canvas2DProps = {
 };
 
 type PointerState = { x: number; y: number } | null;
-
-const applyPositionSnap = (
-  obj: Object2D,
-  candidate: { xMm: number; yMm: number },
-  snapOn: boolean,
-  allObjects: Object2D[],
-): { xMm: number; yMm: number } => {
-  if (!snapOn) return candidate;
-
-  const { xMm, yMm } = candidate;
-  const gridX = snapMm(xMm);
-  const gridY = snapMm(yMm);
-
-  const { bestDx, bestDy } = findAlignmentDeltasMm(obj, { xMm, yMm }, allObjects);
-
-  const snappedX = bestDx !== null && Math.abs(bestDx) <= Math.abs(gridX - xMm) ? xMm + bestDx : gridX;
-  const snappedY = bestDy !== null && Math.abs(bestDy) <= Math.abs(gridY - yMm) ? yMm + bestDy : gridY;
-
-  return { xMm: snappedX, yMm: snappedY };
-};
 
 export default function Canvas2D({
   activeTool,
@@ -228,9 +207,10 @@ export default function Canvas2D({
     }
     const xPx = evt.target.x();
     const yPx = evt.target.y();
-    const snappedPosition = applyPositionSnap(obj, { xMm: pxToMm(xPx), yMm: pxToMm(yPx) }, snapOn, objects);
-    evt.target.position({ x: mmToPx(snappedPosition.xMm), y: mmToPx(snappedPosition.yMm) });
-    onUpdateObject(obj.id, (current) => ({ ...current, ...snappedPosition }));
+    const xMm = snapOn ? snapMm(pxToMm(xPx)) : pxToMm(xPx);
+    const yMm = snapOn ? snapMm(pxToMm(yPx)) : pxToMm(yPx);
+    evt.target.position({ x: mmToPx(xMm), y: mmToPx(yMm) });
+    onUpdateObject(obj.id, (current) => ({ ...current, xMm, yMm }));
   };
 
   const handleObjectTransformEnd = (evt: any, obj: Object2D) => {
@@ -243,45 +223,19 @@ export default function Canvas2D({
     const newWidthMm = snapOn ? snapMm(newWidthMmRaw) : newWidthMmRaw;
     const newHeightMm = snapOn ? snapMm(newHeightMmRaw) : newHeightMmRaw;
 
-    const updatedObjForSnap =
-      obj.kind === "ramp"
-        ? { ...obj, runMm: newWidthMm, widthMm: newHeightMm }
-        : { ...obj, lengthMm: newWidthMm, widthMm: newHeightMm };
-
-    const positionMm = applyPositionSnap(
-      updatedObjForSnap,
-      { xMm: pxToMm(node.x()), yMm: pxToMm(node.y()) },
-      snapOn,
-      objects,
-    );
-
     const snappedWidthPx = mmToPx(newWidthMm);
     const snappedHeightPx = mmToPx(newHeightMm);
-    const snappedPositionPx = { x: mmToPx(positionMm.xMm), y: mmToPx(positionMm.yMm) };
 
-    node.position(snappedPositionPx);
     node.width(snappedWidthPx);
     node.height(snappedHeightPx);
     node.scaleX(1);
     node.scaleY(1);
 
     if (obj.kind === "ramp") {
-      onUpdateObject(obj.id, (current) => ({
-        ...current,
-        xMm: positionMm.xMm,
-        yMm: positionMm.yMm,
-        runMm: newWidthMm,
-        widthMm: newHeightMm,
-      }));
+      onUpdateObject(obj.id, (current) => ({ ...current, runMm: newWidthMm, widthMm: newHeightMm }));
       return;
     }
-    onUpdateObject(obj.id, (current) => ({
-      ...current,
-      xMm: positionMm.xMm,
-      yMm: positionMm.yMm,
-      lengthMm: newWidthMm,
-      widthMm: newHeightMm,
-    }));
+    onUpdateObject(obj.id, (current) => ({ ...current, lengthMm: newWidthMm, widthMm: newHeightMm }));
   };
 
   const hudLabel = useMemo(() => {

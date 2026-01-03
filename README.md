@@ -170,9 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.2.8
-- Fixed world-grid snapping, persisted position on resize, added object alignment snapping.
-
 ### v0.2.7
 - Added resize handles for ramps and platforms with snapping, rotation-aware scaling, and minimum sizing.
 - Committed transformed dimensions back to mm on resize so dragging and selection continue working post-scale.
