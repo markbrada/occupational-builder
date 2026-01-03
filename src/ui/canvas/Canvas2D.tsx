@@ -29,6 +29,72 @@ type Canvas2DProps = {
 type PointerState = { x: number; y: number } | null;
 type PointMm = { xMm: number; yMm: number };
 
+type AabbMm = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  cx: number;
+  cy: number;
+  w: number;
+  h: number;
+};
+
+type SnapGuideState = {
+  snappedX?: number;
+  snappedY?: number;
+  snappedPoint: { xMm: number; yMm: number } | null;
+};
+
+type SnapAxisCandidate = {
+  delta: number;
+  snapCoord: number;
+  type: "face" | "poi";
+  poiName?: string;
+  targetPoint?: { x: number; y: number };
+};
+
+const SNAP_THRESHOLD_MM = 20;
+
+const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
+  const size = getObjectBoundingBoxMm(obj);
+  const cx = centerOverride?.xMm ?? obj.xMm;
+  const cy = centerOverride?.yMm ?? obj.yMm;
+  const left = cx - size.widthMm / 2;
+  const top = cy - size.heightMm / 2;
+  return {
+    left,
+    right: left + size.widthMm,
+    top,
+    bottom: top + size.heightMm,
+    cx,
+    cy,
+    w: size.widthMm,
+    h: size.heightMm,
+  };
+};
+
+const getPoisMm = (aabb: AabbMm) => (
+  [
+    { name: "topLeft", x: aabb.left, y: aabb.top },
+    { name: "topRight", x: aabb.right, y: aabb.top },
+    { name: "bottomLeft", x: aabb.left, y: aabb.bottom },
+    { name: "bottomRight", x: aabb.right, y: aabb.bottom },
+    { name: "midTop", x: aabb.cx, y: aabb.top },
+    { name: "midBottom", x: aabb.cx, y: aabb.bottom },
+    { name: "midLeft", x: aabb.left, y: aabb.cy },
+    { name: "midRight", x: aabb.right, y: aabb.cy },
+    { name: "centre", x: aabb.cx, y: aabb.cy },
+  ] satisfies Array<{ name: string; x: number; y: number }>
+);
+
+const getGridSnappedCentre = (obj: Object2D, center: PointMm): PointMm => {
+  const bbox = getObjectBoundingBoxMm(obj);
+  const topLeft = topLeftFromCenterMm(center, bbox);
+  const snappedTopLeft = { xMm: snapMm(topLeft.xMm), yMm: snapMm(topLeft.yMm) };
+  return centerFromTopLeftMm(snappedTopLeft, bbox);
+};
+
 export default function Canvas2D({
   activeTool,
   snapOn,
@@ -46,6 +112,7 @@ export default function Canvas2D({
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [pointer, setPointer] = useState<PointerState>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [snapGuide, setSnapGuide] = useState<SnapGuideState>({ snappedPoint: null });
 
   useEffect(() => {
     const node = containerRef.current;
@@ -195,15 +262,104 @@ export default function Canvas2D({
     }
   };
 
-  const getSnappedPositionPx = (obj: Object2D, proposedPx: { x: number; y: number }) => {
-    if (!snapOn) return proposedPx;
+  const pickBestAxisCandidate = (candidates: SnapAxisCandidate[]): SnapAxisCandidate | undefined => {
+    const faceCandidates = candidates.filter((c) => c.type === "face");
+    const pool = faceCandidates.length > 0 ? faceCandidates : candidates;
+    return pool.reduce<SnapAxisCandidate | undefined>((best, current) => {
+      if (!best) return current;
+      if (Math.abs(current.delta) < Math.abs(best.delta)) return current;
+      return best;
+    }, undefined);
+  };
 
-    const centreMm = { xMm: pxToMm(proposedPx.x), yMm: pxToMm(proposedPx.y) };
-    const bbox = getObjectBoundingBoxMm(obj);
-    const topLeft = topLeftFromCenterMm(centreMm, bbox);
-    const snappedTopLeft = { xMm: snapMm(topLeft.xMm), yMm: snapMm(topLeft.yMm) };
-    const snappedCentre = centerFromTopLeftMm(snappedTopLeft, bbox);
-    return { x: mmToPx(snappedCentre.xMm), y: mmToPx(snappedCentre.yMm) };
+  const getObjectSnap = (obj: Object2D, proposedPx: { x: number; y: number }) => {
+    const proposedCentre: PointMm = { xMm: pxToMm(proposedPx.x), yMm: pxToMm(proposedPx.y) };
+    const baseCentre = snapOn ? getGridSnappedCentre(obj, proposedCentre) : proposedCentre;
+    if (!snapOn) {
+      setSnapGuide({ snappedPoint: null });
+      return baseCentre;
+    }
+
+    const activeAabb = getAabbMm(obj, baseCentre);
+    const activePois = getPoisMm(activeAabb);
+    const otherObjects = objects.filter((o) => o.id !== obj.id);
+
+    const xCandidates: SnapAxisCandidate[] = [];
+    const yCandidates: SnapAxisCandidate[] = [];
+
+    const pushFaceCandidates = (activeCoord: number, targetCoord: number, axis: "x" | "y") => {
+      const delta = targetCoord - activeCoord;
+      if (Math.abs(delta) > SNAP_THRESHOLD_MM) return;
+      const candidate: SnapAxisCandidate = { delta, snapCoord: targetCoord, type: "face" };
+      if (axis === "x") {
+        xCandidates.push(candidate);
+      } else {
+        yCandidates.push(candidate);
+      }
+    };
+
+    const pushPoiCandidates = (activePoi: { name: string; x: number; y: number }, targetPoi: { name: string; x: number; y: number }) => {
+      const deltaX = targetPoi.x - activePoi.x;
+      const deltaY = targetPoi.y - activePoi.y;
+      if (Math.abs(deltaX) <= SNAP_THRESHOLD_MM) {
+        xCandidates.push({
+          delta: deltaX,
+          snapCoord: targetPoi.x,
+          type: "poi",
+          poiName: activePoi.name,
+          targetPoint: { x: targetPoi.x, y: targetPoi.y },
+        });
+      }
+      if (Math.abs(deltaY) <= SNAP_THRESHOLD_MM) {
+        yCandidates.push({
+          delta: deltaY,
+          snapCoord: targetPoi.y,
+          type: "poi",
+          poiName: activePoi.name,
+          targetPoint: { x: targetPoi.x, y: targetPoi.y },
+        });
+      }
+    };
+
+    otherObjects.forEach((other) => {
+      const targetAabb = getAabbMm(other);
+      const targetPois = getPoisMm(targetAabb);
+
+      // Face and centre alignments (priority)
+      const activeXFaces = [activeAabb.left, activeAabb.cx, activeAabb.right];
+      const targetXFaces = [targetAabb.left, targetAabb.cx, targetAabb.right];
+      activeXFaces.forEach((activeFaceX) => {
+        targetXFaces.forEach((targetFaceX) => pushFaceCandidates(activeFaceX, targetFaceX, "x"));
+      });
+
+      const activeYFaces = [activeAabb.top, activeAabb.cy, activeAabb.bottom];
+      const targetYFaces = [targetAabb.top, targetAabb.cy, targetAabb.bottom];
+      activeYFaces.forEach((activeFaceY) => {
+        targetYFaces.forEach((targetFaceY) => pushFaceCandidates(activeFaceY, targetFaceY, "y"));
+      });
+
+      // POI matches (secondary)
+      activePois.forEach((activePoi) => {
+        targetPois.forEach((targetPoi) => pushPoiCandidates(activePoi, targetPoi));
+      });
+    });
+
+    const bestX = pickBestAxisCandidate(xCandidates);
+    const bestY = pickBestAxisCandidate(yCandidates);
+
+    const snappedCentre: PointMm = {
+      xMm: baseCentre.xMm + (bestX ? bestX.delta : 0),
+      yMm: baseCentre.yMm + (bestY ? bestY.delta : 0),
+    };
+
+    const snappedPoint = bestX?.type === "poi" ? bestX.targetPoint : bestY?.type === "poi" ? bestY.targetPoint : null;
+    setSnapGuide({
+      snappedX: bestX ? bestX.snapCoord : undefined,
+      snappedY: bestY ? bestY.snapCoord : undefined,
+      snappedPoint: snappedPoint ? { xMm: snappedPoint.x, yMm: snappedPoint.y } : null,
+    });
+
+    return snappedCentre;
   };
 
   const handleObjectDragEnd = (evt: any, obj: Object2D) => {
@@ -212,11 +368,13 @@ export default function Canvas2D({
     }
     const xPx = evt.target.x();
     const yPx = evt.target.y();
-    const snapped = getSnappedPositionPx(obj, { x: xPx, y: yPx });
-    evt.target.position(snapped);
-    const xMm = pxToMm(snapped.x);
-    const yMm = pxToMm(snapped.y);
+    const snappedCentre = getObjectSnap(obj, { x: xPx, y: yPx });
+    const snappedPx = { x: mmToPx(snappedCentre.xMm), y: mmToPx(snappedCentre.yMm) };
+    evt.target.position(snappedPx);
+    const xMm = snappedCentre.xMm;
+    const yMm = snappedCentre.yMm;
     onUpdateObject(obj.id, (current) => ({ ...current, xMm, yMm }));
+    setSnapGuide({ snappedPoint: null });
   };
 
   const hudLabel = useMemo(() => {
@@ -229,7 +387,10 @@ export default function Canvas2D({
     const isSelected = obj.id === selectedId;
     const isHover = obj.id === hoverId;
     const draggable = isSelected && !obj.locked;
-    const dragBoundFunc = (pos: any) => getSnappedPositionPx(obj, pos);
+    const dragBoundFunc = (pos: any) => {
+      const snappedCentre = getObjectSnap(obj, pos);
+      return { x: mmToPx(snappedCentre.xMm), y: mmToPx(snappedCentre.yMm) };
+    };
     const hoverHandlers = {
       onMouseEnter: () => setHoverId(obj.id),
       onMouseLeave: () => setHoverId((current) => (current === obj.id ? null : current)),
@@ -285,6 +446,26 @@ export default function Canvas2D({
           </Layer>
 
           <Layer>{objectNodes}</Layer>
+
+          <Layer listening={false}>
+            {snapGuide.snappedX !== undefined && (
+              <Line
+                points={[mmToPx(snapGuide.snappedX), 0, mmToPx(snapGuide.snappedX), size.height]}
+                stroke="rgba(239,68,68,0.5)"
+                strokeWidth={1}
+              />
+            )}
+            {snapGuide.snappedY !== undefined && (
+              <Line
+                points={[0, mmToPx(snapGuide.snappedY), size.width, mmToPx(snapGuide.snappedY)]}
+                stroke="rgba(239,68,68,0.5)"
+                strokeWidth={1}
+              />
+            )}
+            {snapGuide.snappedPoint && (
+              <Circle x={mmToPx(snapGuide.snappedPoint.xMm)} y={mmToPx(snapGuide.snappedPoint.yMm)} radius={4} fill="rgba(239,68,68,0.5)" />
+            )}
+          </Layer>
 
           <Layer listening={false}>
             {pointer && (

@@ -170,6 +170,10 @@ Parameters:
 
 ## Changelog
 
+### v0.3.2
+- Added CAD-style object-to-object snapping that aligns faces, centres, and points of interest while dragging with red guide visuals.
+- Kept grid snapping unchanged, maintained locked-object behaviour, and ensured build stability alongside UI polish.
+
 ### v0.3.1
 - Overhauled 2D grid/snapping with 100mm minor and 1000mm major lines plus top-left anchored placement and dragging tied to the grid.
 - Defaulted Snap to ON, applied 100mm live snapping for drag, placement, and arrow nudging (10mm when off), and preserved centre-based storage.
