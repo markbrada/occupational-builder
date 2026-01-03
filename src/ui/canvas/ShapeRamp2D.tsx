@@ -31,8 +31,12 @@ export default function ShapeRamp2D({
   onDragStart,
   onDragEnd,
 }: Props) {
+  const leftWingMm = obj.hasLeftWing ? obj.leftWingSizeMm : 0;
+  const rightWingMm = obj.hasRightWing ? obj.rightWingSizeMm : 0;
+
   const widthPx = mmToPx(obj.runMm);
-  const heightPx = mmToPx(obj.widthMm);
+  const bodyHeightPx = mmToPx(obj.widthMm);
+  const totalHeightPx = mmToPx(obj.widthMm + leftWingMm + rightWingMm);
   const fill = ghost ? "rgba(59,130,246,0.25)" : "#e5e7eb";
   const stroke =
     activeTool === "delete" && hover
@@ -44,7 +48,8 @@ export default function ShapeRamp2D({
           : "#0f172a";
   const opacity = ghost ? 0.35 : 1;
   const rectX = -widthPx / 2;
-  const rectY = -heightPx / 2;
+  const outerRectY = -mmToPx(obj.widthMm / 2 + leftWingMm);
+  const bodyRectY = -(bodyHeightPx / 2);
   const arrowStartX = -widthPx / 2 + widthPx * 0.1;
   const arrowEndX = widthPx / 2 - widthPx * 0.1;
 
@@ -64,14 +69,26 @@ export default function ShapeRamp2D({
     >
       <Rect
         x={rectX}
-        y={rectY}
+        y={outerRectY}
         width={widthPx}
-        height={heightPx}
+        height={totalHeightPx}
         fill={fill}
         stroke={stroke}
         strokeWidth={selected ? 3 : 2}
         opacity={opacity}
       />
+      {(obj.hasLeftWing || obj.hasRightWing) && (
+        <Rect
+          x={rectX}
+          y={bodyRectY}
+          width={widthPx}
+          height={bodyHeightPx}
+          fill={fill}
+          stroke="transparent"
+          strokeWidth={0}
+          opacity={opacity}
+        />
+      )}
       {obj.showArrow && (
         <Arrow
           points={[arrowStartX, 0, arrowEndX, 0]}

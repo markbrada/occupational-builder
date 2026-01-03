@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import type { ObjectPatch } from "../../model/objectUpdate";
-import type { Object2D } from "../../model/types";
+import type { MeasurementKey, Object2D, RampObj } from "../../model/types";
 
 type InspectorProps = {
   selected: Object2D | null;
@@ -18,6 +18,15 @@ const fieldConfig: { key: FieldKey; label: string }[] = [
   { key: "rotationDeg", label: "Rotate (degrees)" },
 ];
 
+const measurementConfig: { key: MeasurementKey; label: string; description: string }[] = [
+  { key: "L1", label: "L1", description: "Length (Side 1)" },
+  { key: "L2", label: "L2", description: "Length (Side 2)" },
+  { key: "W1", label: "W1", description: "Width (Side 1)" },
+  { key: "W2", label: "W2", description: "Width (Side 2)" },
+  { key: "H", label: "H", description: "Height" },
+  { key: "E", label: "E", description: "Elevation" },
+];
+
 const sanitiseNumericInput = (value: string): string => value.replace(/[^\d-]/g, "");
 
 const toDisplayValue = (value: number | undefined): string => (Number.isFinite(value) ? String(value) : "");
@@ -30,10 +39,14 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
     elevationMm: "",
     rotationDeg: "",
   });
+  const [leftWingSize, setLeftWingSize] = useState<string>("");
+  const [rightWingSize, setRightWingSize] = useState<string>("");
 
   useEffect(() => {
     if (!selected) {
       setFieldValues({ lengthMm: "", widthMm: "", heightMm: "", elevationMm: "", rotationDeg: "" });
+      setLeftWingSize("");
+      setRightWingSize("");
       return;
     }
     setFieldValues({
@@ -43,6 +56,13 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
       elevationMm: toDisplayValue(selected.elevationMm),
       rotationDeg: toDisplayValue(selected.rotationDeg),
     });
+    if (selected.kind === "ramp") {
+      setLeftWingSize(toDisplayValue(selected.leftWingSizeMm));
+      setRightWingSize(toDisplayValue(selected.rightWingSizeMm));
+    } else {
+      setLeftWingSize("");
+      setRightWingSize("");
+    }
   }, [
     selected?.id,
     selected?.lengthMm,
@@ -50,6 +70,8 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
     selected?.heightMm,
     selected?.elevationMm,
     selected?.rotationDeg,
+    selected && selected.kind === "ramp" ? selected.leftWingSizeMm : null,
+    selected && selected.kind === "ramp" ? selected.rightWingSizeMm : null,
   ]);
 
   const handleChange = (key: FieldKey) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -90,6 +112,54 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
   const handleToggleLock = () => {
     if (!selected) return;
     onUpdateObject(selected.id, { locked: !selected.locked }, true);
+  };
+
+  const handleToggleMeasurement = (key: MeasurementKey) => (event: ChangeEvent<HTMLInputElement>) => {
+    if (!selected || selected.locked) return;
+    const nextValue = event.target.checked;
+    onUpdateObject(selected.id, { measurements: { [key]: nextValue } } as ObjectPatch, true);
+  };
+
+  const handleWingToggle = (key: "hasLeftWing" | "hasRightWing") => () => {
+    if (!selected || selected.kind !== "ramp") return;
+    const current = selected[key];
+    const patch: Partial<RampObj> =
+      key === "hasLeftWing"
+        ? { hasLeftWing: !current, leftWingSizeMm: !current ? selected.leftWingSizeMm : 0 }
+        : { hasRightWing: !current, rightWingSizeMm: !current ? selected.rightWingSizeMm : 0 };
+    onUpdateObject(selected.id, patch, true);
+  };
+
+  const commitWingSize = (key: "leftWingSizeMm" | "rightWingSizeMm", raw: string) => {
+    if (!selected || selected.kind !== "ramp") return;
+    const parsed = raw === "" ? NaN : parseInt(raw, 10);
+    if (Number.isNaN(parsed)) {
+      const fallback = key === "leftWingSizeMm" ? selected.leftWingSizeMm : selected.rightWingSizeMm;
+      const setter = key === "leftWingSizeMm" ? setLeftWingSize : setRightWingSize;
+      setter(toDisplayValue(fallback));
+      return;
+    }
+    onUpdateObject(selected.id, { [key]: parsed } as ObjectPatch, true);
+  };
+
+  const handleWingSizeChange = (key: "leftWingSizeMm" | "rightWingSizeMm") => (event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = sanitiseNumericInput(event.target.value);
+    const setter = key === "leftWingSizeMm" ? setLeftWingSize : setRightWingSize;
+    setter(nextValue);
+  };
+
+  const handleWingSizeBlur = (key: "leftWingSizeMm" | "rightWingSizeMm") => () => {
+    const value = key === "leftWingSizeMm" ? leftWingSize : rightWingSize;
+    commitWingSize(key, value);
+  };
+
+  const handleWingSizeKeyDown = (key: "leftWingSizeMm" | "rightWingSizeMm") => (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const value = key === "leftWingSizeMm" ? leftWingSize : rightWingSize;
+      commitWingSize(key, value);
+      (event.target as HTMLInputElement).blur();
+    }
   };
 
   const kindLabel = useMemo(() => {
@@ -159,8 +229,100 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
         <div className="inspector__sectionHeader">
           <span className="inspector__label">Measurements</span>
         </div>
-        <div className="inspector__placeholder">Coming soon</div>
+        <div className="inspector__checkboxGrid">
+          {measurementConfig.map(({ key, label, description }) => {
+            const disabled = locked || (key === "E" && selected.elevationMm === 0);
+            return (
+              <label key={key} className={`inspector__checkboxRow ${disabled ? "is-disabled" : ""}`}>
+                <input
+                  type="checkbox"
+                  className="inspector__checkbox"
+                  checked={Boolean(selected.measurements?.[key])}
+                  onChange={handleToggleMeasurement(key)}
+                  disabled={disabled}
+                />
+                <div className="inspector__checkboxContent">
+                  <span className="inspector__checkboxLabel">{label}</span>
+                  <span className="inspector__checkboxDescription">{description}</span>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+        {selected.elevationMm === 0 && (
+          <div className="inspector__helperText">Elevation dimension appears only when Elevation &gt; 0.</div>
+        )}
       </div>
+      {selected.kind === "ramp" && (
+        <div className="inspector__section inspector__section--ramp">
+          <div className="inspector__sectionHeader">
+            <span className="inspector__label">Ramp Wings</span>
+          </div>
+          <div className="inspector__helperText">
+            Wing = side extension that widens the ramp footprint on that side. Wing Size adds extra width (mm) in plan.
+          </div>
+          <label className="inspector__field">
+            <span className="inspector__label">Has Left Wing</span>
+            <button
+              type="button"
+              className={`inspector__toggle ${selected.hasLeftWing ? "is-on" : "is-off"}`}
+              onClick={handleWingToggle("hasLeftWing")}
+              aria-pressed={selected.hasLeftWing}
+              disabled={locked}
+            >
+              <span className="inspector__toggleTrack">
+                <span className="inspector__toggleThumb" />
+              </span>
+              <span className="inspector__toggleText">{selected.hasLeftWing ? "on" : "off"}</span>
+            </button>
+          </label>
+          {selected.hasLeftWing && (
+            <label className="inspector__field">
+              <span className="inspector__label">Left Wing Size (mm)</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="inspector__input"
+                value={leftWingSize}
+                onChange={handleWingSizeChange("leftWingSizeMm")}
+                onBlur={handleWingSizeBlur("leftWingSizeMm")}
+                onKeyDown={handleWingSizeKeyDown("leftWingSizeMm")}
+                disabled={locked}
+              />
+            </label>
+          )}
+          <label className="inspector__field">
+            <span className="inspector__label">Has Right Wing</span>
+            <button
+              type="button"
+              className={`inspector__toggle ${selected.hasRightWing ? "is-on" : "is-off"}`}
+              onClick={handleWingToggle("hasRightWing")}
+              aria-pressed={selected.hasRightWing}
+              disabled={locked}
+            >
+              <span className="inspector__toggleTrack">
+                <span className="inspector__toggleThumb" />
+              </span>
+              <span className="inspector__toggleText">{selected.hasRightWing ? "on" : "off"}</span>
+            </button>
+          </label>
+          {selected.hasRightWing && (
+            <label className="inspector__field">
+              <span className="inspector__label">Right Wing Size (mm)</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="inspector__input"
+                value={rightWingSize}
+                onChange={handleWingSizeChange("rightWingSizeMm")}
+                onBlur={handleWingSizeBlur("rightWingSizeMm")}
+                onKeyDown={handleWingSizeKeyDown("rightWingSizeMm")}
+                disabled={locked}
+              />
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }

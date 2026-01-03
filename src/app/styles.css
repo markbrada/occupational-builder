@@ -437,6 +437,10 @@
   border-top: 1px solid #e5e7eb;
 }
 
+.inspector__section--ramp {
+  gap: 12px;
+}
+
 .inspector__sectionHeader {
   display: flex;
   align-items: center;
@@ -450,6 +454,56 @@
   background: #f9fafb;
   color: #9ca3af;
   font-weight: 600;
+}
+
+.inspector__checkboxGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.inspector__checkboxRow {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.inspector__checkboxRow.is-disabled {
+  opacity: 0.6;
+}
+
+.inspector__checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+}
+
+.inspector__checkboxContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inspector__checkboxLabel {
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.inspector__checkboxDescription {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.inspector__helperText {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
 }
 
 .ob-statusBar {

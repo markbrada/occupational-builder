@@ -6,7 +6,7 @@ import {
   DEFAULT_RAMP_RUN_MM,
   DEFAULT_RAMP_WIDTH_MM,
 } from "./defaults";
-import { LandingObj, MeasurementState, Object2D, RampObj, Tool } from "./types";
+import { LandingObj, MeasurementKey, MeasurementState, Object2D, RampObj, Tool } from "./types";
 
 export const STORAGE_KEY = "occupational_builder_v1";
 
@@ -37,27 +37,41 @@ const isTool = (value: unknown): value is Tool =>
 
 const isLegacyTool = (value: unknown): value is "platform" => value === "platform";
 
-const normaliseMeasurements = (value: any): MeasurementState => {
-  const sidesValue = value?.sides;
-  const side = (candidate: any): "one" | "both" | undefined =>
-    candidate === "one" || candidate === "both" ? candidate : undefined;
-  const sides =
-    sidesValue && (side(sidesValue?.L) || side(sidesValue?.W))
-      ? {
-          ...(side(sidesValue?.L) ? { L: side(sidesValue?.L) } : {}),
-          ...(side(sidesValue?.W) ? { W: side(sidesValue?.W) } : {}),
-        }
-      : undefined;
+const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "H", "E"];
 
-  return {
-    enabled: {
-      L: value?.enabled?.L ?? true,
-      W: value?.enabled?.W ?? true,
-      H: value?.enabled?.H ?? true,
-      E: value?.enabled?.E ?? true,
-    },
-    ...(sides ? { sides } : {}),
+const normaliseMeasurements = (value: any, elevationMm: number): MeasurementState => {
+  const fallback = (defaultValue: boolean): boolean => (typeof defaultValue === "boolean" ? defaultValue : true);
+
+  const legacyEnabled = value?.enabled;
+  const legacySides = value?.sides;
+
+  const base: MeasurementState = {
+    L1: fallback(legacyEnabled?.L ?? true),
+    L2: fallback(legacyEnabled?.L ?? true),
+    W1: fallback(legacyEnabled?.W ?? true),
+    W2: fallback(legacyEnabled?.W ?? true),
+    H: fallback(legacyEnabled?.H ?? true),
+    E: fallback(legacyEnabled?.E ?? elevationMm > 0),
   };
+
+  const lSide = legacySides?.L === "one" ? "one" : legacySides?.L === "both" ? "both" : undefined;
+  const wSide = legacySides?.W === "one" ? "one" : legacySides?.W === "both" ? "both" : undefined;
+
+  if (lSide === "one") base.L2 = false;
+  if (wSide === "one") base.W2 = false;
+
+  const keyedOverrides =
+    value && typeof value === "object"
+      ? measurementKeys.reduce<Partial<MeasurementState>>((acc, key) => {
+          const candidate = value[key];
+          if (typeof candidate === "boolean") {
+            acc[key] = candidate;
+          }
+          return acc;
+        }, {})
+      : {};
+
+  return { ...base, ...keyedOverrides };
 };
 
 const toRamp = (value: any): RampObj | null => {
@@ -78,13 +92,13 @@ const toRamp = (value: any): RampObj | null => {
     elevationMm: isNumber(value.elevationMm) ? value.elevationMm : 0,
     rotationDeg: isNumber(value.rotationDeg) ? value.rotationDeg : 0,
     locked: isBoolean(value.locked) ? value.locked : false,
-    measurements: normaliseMeasurements(value.measurements),
+    measurements: normaliseMeasurements(value.measurements, value.elevationMm ?? 0),
     runMm: isNumber(value.runMm) ? value.runMm : lengthMm,
     showArrow: isBoolean(value.showArrow) ? value.showArrow : true,
-    hasLeftWing: isBoolean(value.hasLeftWing) ? value.hasLeftWing : undefined,
-    leftWingSizeMm: isNumber(value.leftWingSizeMm) ? value.leftWingSizeMm : undefined,
-    hasRightWing: isBoolean(value.hasRightWing) ? value.hasRightWing : undefined,
-    rightWingSizeMm: isNumber(value.rightWingSizeMm) ? value.rightWingSizeMm : undefined,
+    hasLeftWing: isBoolean(value.hasLeftWing) ? value.hasLeftWing : false,
+    leftWingSizeMm: isNumber(value.leftWingSizeMm) ? value.leftWingSizeMm : 0,
+    hasRightWing: isBoolean(value.hasRightWing) ? value.hasRightWing : false,
+    rightWingSizeMm: isNumber(value.rightWingSizeMm) ? value.rightWingSizeMm : 0,
   };
 };
 
@@ -117,7 +131,7 @@ const toLanding = (value: any): LandingObj | null => {
     elevationMm: isNumber(value.elevationMm) ? value.elevationMm : 0,
     rotationDeg: isNumber(value.rotationDeg) ? value.rotationDeg : 0,
     locked: isBoolean(value.locked) ? value.locked : false,
-    measurements: normaliseMeasurements(value.measurements),
+    measurements: normaliseMeasurements(value.measurements, value.elevationMm ?? 0),
   };
 };
 
@@ -127,10 +141,8 @@ const toObject2D = (value: any): Object2D | null => {
   return null;
 };
 
-const cloneMeasurements = (value: MeasurementState): MeasurementState => ({
-  enabled: { ...value.enabled },
-  ...(value.sides ? { sides: { ...value.sides } } : {}),
-});
+const cloneMeasurements = (value: MeasurementState): MeasurementState =>
+  measurementKeys.reduce<MeasurementState>((acc, key) => ({ ...acc, [key]: value[key] }), {} as MeasurementState);
 
 const cloneObject = (obj: Object2D): Object2D =>
   obj.kind === "ramp"

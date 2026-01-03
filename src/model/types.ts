@@ -2,10 +2,9 @@ export type Tool = "none" | "ramp" | "landing" | "delete";
 
 export type ObjectKind = "ramp" | "landing" | "stairs";
 
-export type MeasurementState = {
-  enabled: { L: boolean; W: boolean; H: boolean; E: boolean };
-  sides?: { L?: "one" | "both"; W?: "one" | "both" };
-};
+export type MeasurementKey = "L1" | "L2" | "W1" | "W2" | "H" | "E";
+
+export type MeasurementState = Record<MeasurementKey, boolean>;
 
 export type BaseObj = {
   id: string;
@@ -24,10 +23,10 @@ export type BaseObj = {
 export type RampObj = BaseObj & {
   kind: "ramp";
   showArrow: boolean;
-  hasLeftWing?: boolean;
-  leftWingSizeMm?: number;
-  hasRightWing?: boolean;
-  rightWingSizeMm?: number;
+  hasLeftWing: boolean;
+  leftWingSizeMm: number;
+  hasRightWing: boolean;
+  rightWingSizeMm: number;
   runMm: number;
 };
 

@@ -1,4 +1,4 @@
-import { BaseObj, LandingObj, MeasurementState, Object2D, RampObj, Snapshot } from "./types";
+import { BaseObj, LandingObj, MeasurementKey, MeasurementState, Object2D, RampObj, Snapshot } from "./types";
 
 export type ObjectPatch = Partial<Object2D> | Partial<BaseObj>;
 
@@ -15,13 +15,14 @@ export const normaliseDeg = (deg: number): number => {
   return ((rounded % 360) + 360) % 360;
 };
 
+const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "H", "E"];
+
 const mergeMeasurements = (current: MeasurementState, patch?: Partial<MeasurementState>): MeasurementState => {
   if (!patch) return current;
-  const nextEnabled = patch.enabled ? { ...current.enabled, ...patch.enabled } : current.enabled;
-  const nextSides = patch.sides ? { ...(current.sides ?? {}), ...patch.sides } : current.sides;
-  return nextSides && (nextSides.L || nextSides.W)
-    ? { enabled: nextEnabled, sides: nextSides }
-    : { enabled: nextEnabled };
+  return measurementKeys.reduce<MeasurementState>(
+    (acc, key) => ({ ...acc, [key]: patch[key] ?? current[key] }),
+    { ...current },
+  );
 };
 
 const normaliseBaseObject = (obj: Object2D): Object2D => ({
@@ -40,19 +41,17 @@ const normaliseRampObject = (obj: RampObj): RampObj => {
   return {
     ...base,
     runMm: clampInt(base.runMm, 0),
-    leftWingSizeMm: base.leftWingSizeMm === undefined ? undefined : clampInt(base.leftWingSizeMm, 0),
-    rightWingSizeMm: base.rightWingSizeMm === undefined ? undefined : clampInt(base.rightWingSizeMm, 0),
+    hasLeftWing: Boolean(base.hasLeftWing),
+    hasRightWing: Boolean(base.hasRightWing),
+    leftWingSizeMm: clampInt(base.hasLeftWing ? base.leftWingSizeMm : 0, 0),
+    rightWingSizeMm: clampInt(base.hasRightWing ? base.rightWingSizeMm : 0, 0),
   };
 };
 
 const normaliseLandingObject = (obj: LandingObj): LandingObj => normaliseBaseObject(obj) as LandingObj;
 
-const measurementsEqual = (a: MeasurementState, b: MeasurementState): boolean => {
-  const enabledEqual =
-    a.enabled.L === b.enabled.L && a.enabled.W === b.enabled.W && a.enabled.H === b.enabled.H && a.enabled.E === b.enabled.E;
-  const sidesEqual = (a.sides?.L ?? null) === (b.sides?.L ?? null) && (a.sides?.W ?? null) === (b.sides?.W ?? null);
-  return enabledEqual && sidesEqual;
-};
+const measurementsEqual = (a: MeasurementState, b: MeasurementState): boolean =>
+  measurementKeys.every((key) => a[key] === b[key]);
 
 const objectsEqual = (a: Object2D, b: Object2D): boolean => {
   const baseEqual =

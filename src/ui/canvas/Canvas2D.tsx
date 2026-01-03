@@ -72,10 +72,12 @@ const WORKSPACE_HALF_PX = mmToPx(HALF_WORKSPACE_MM);
 
 const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
   const size = getObjectBoundingBoxMm(obj);
-  const cx = centerOverride?.xMm ?? obj.xMm;
-  const cy = centerOverride?.yMm ?? obj.yMm;
-  const left = cx - size.widthMm / 2;
-  const top = cy - size.heightMm / 2;
+  const center = { xMm: centerOverride?.xMm ?? obj.xMm, yMm: centerOverride?.yMm ?? obj.yMm };
+  const topLeft = topLeftFromCenterMm(center, size);
+  const left = topLeft.xMm;
+  const top = topLeft.yMm;
+  const cx = center.xMm + (size.offsetXMm ?? 0);
+  const cy = center.yMm + (size.offsetYMm ?? 0);
   return {
     left,
     right: left + size.widthMm,
