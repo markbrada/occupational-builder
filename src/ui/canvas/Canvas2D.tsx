@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import { Object2D, PlatformObj, RampObj, Tool } from "../../model/types";
 import { newPlatformAt, newRampAt } from "../../model/defaults";
@@ -29,13 +29,6 @@ type Canvas2DProps = {
 type PointerState = { x: number; y: number } | null;
 type PointMm = { xMm: number; yMm: number };
 
-type WorldBoundsMm = {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-};
-
 type AabbMm = {
   left: number;
   right: number;
@@ -61,77 +54,7 @@ type SnapAxisCandidate = {
   targetPoint?: { x: number; y: number };
 };
 
-type ViewTransform = {
-  scale: number;
-  offset: { x: number; y: number };
-};
-
 const SNAP_THRESHOLD_MM = 20;
-const WORKSPACE_HALF_MM = 12500;
-const WORLD_BOUNDS: WorldBoundsMm = {
-  minX: -WORKSPACE_HALF_MM,
-  maxX: WORKSPACE_HALF_MM,
-  minY: -WORKSPACE_HALF_MM,
-  maxY: WORKSPACE_HALF_MM,
-};
-const PAN_MARGIN_PX = 120;
-const ZOOM_MIN = 0.15;
-const ZOOM_MAX = 8;
-const ZOOM_STEP = 1.08;
-
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-const clampPointToBounds = (point: PointMm, bounds: WorldBoundsMm): PointMm => ({
-  xMm: clamp(point.xMm, bounds.minX, bounds.maxX),
-  yMm: clamp(point.yMm, bounds.minY, bounds.maxY),
-});
-
-const worldMmToScreenPx = (view: ViewTransform, point: PointMm): { x: number; y: number } => ({
-  x: view.offset.x + mmToPx(point.xMm) * view.scale,
-  y: view.offset.y + mmToPx(point.yMm) * view.scale,
-});
-
-const screenPxToWorldMm = (view: ViewTransform, point: { xPx: number; yPx: number }): PointMm => ({
-  xMm: pxToMm((point.xPx - view.offset.x) / view.scale),
-  yMm: pxToMm((point.yPx - view.offset.y) / view.scale),
-});
-
-const clampView = (view: ViewTransform, viewport: CanvasSize): ViewTransform => {
-  const scale = clamp(view.scale, ZOOM_MIN, ZOOM_MAX);
-  const worldMinPx = mmToPx(WORLD_BOUNDS.minX);
-  const worldMaxPx = mmToPx(WORLD_BOUNDS.maxX);
-  const worldMinYpx = mmToPx(WORLD_BOUNDS.minY);
-  const worldMaxYpx = mmToPx(WORLD_BOUNDS.maxY);
-
-  const minOffsetX = -PAN_MARGIN_PX - scale * worldMaxPx;
-  const maxOffsetX = viewport.width + PAN_MARGIN_PX - scale * worldMinPx;
-  const minOffsetY = -PAN_MARGIN_PX - scale * worldMaxYpx;
-  const maxOffsetY = viewport.height + PAN_MARGIN_PX - scale * worldMinYpx;
-
-  return {
-    scale,
-    offset: {
-      x: clamp(view.offset.x, minOffsetX, maxOffsetX),
-      y: clamp(view.offset.y, minOffsetY, maxOffsetY),
-    },
-  };
-};
-
-const getFittedView = (viewport: CanvasSize): ViewTransform => {
-  const worldWidthPx = mmToPx(WORLD_BOUNDS.maxX - WORLD_BOUNDS.minX);
-  const worldHeightPx = mmToPx(WORLD_BOUNDS.maxY - WORLD_BOUNDS.minY);
-  const availableWidth = viewport.width - PAN_MARGIN_PX * 2;
-  const availableHeight = viewport.height - PAN_MARGIN_PX * 2;
-  const fitScale = clamp(Math.min(availableWidth / worldWidthPx, availableHeight / worldHeightPx), ZOOM_MIN, ZOOM_MAX);
-
-  return clampView(
-    {
-      scale: fitScale,
-      offset: { x: viewport.width / 2, y: viewport.height / 2 },
-    },
-    viewport,
-  );
-};
 
 const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
   const size = getObjectBoundingBoxMm(obj);
@@ -190,9 +113,6 @@ export default function Canvas2D({
   const [pointer, setPointer] = useState<PointerState>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [snapGuide, setSnapGuide] = useState<SnapGuideState>({ snappedPoint: null });
-  const [view, setView] = useState<ViewTransform>({ scale: 1, offset: { x: 0, y: 0 } });
-  const isPanningRef = useRef(false);
-  const panLastRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -239,38 +159,27 @@ export default function Canvas2D({
 
   const hasSize = size.width > 0 && size.height > 0;
 
-  useEffect(() => {
-    if (!hasSize) return;
-    setView((current) => {
-      if (current.offset.x === 0 && current.offset.y === 0 && current.scale === 1) {
-        return getFittedView(size);
-      }
-      return clampView(current, size);
-    });
-  }, [hasSize, size]);
-
   const pointerMm: PointMm | null = useMemo(() => {
     if (!pointer) return null;
-    return screenPxToWorldMm(view, { xPx: pointer.x, yPx: pointer.y });
-  }, [pointer, view]);
+    return { xMm: pxToMm(pointer.x), yMm: pxToMm(pointer.y) };
+  }, [pointer]);
 
   const desiredAnchorMm: PointMm | null = useMemo(() => {
     if (!pointerMm) return null;
     if (!snapOn) return pointerMm;
-    return clampPointToBounds({ xMm: snapMm(pointerMm.xMm), yMm: snapMm(pointerMm.yMm) }, WORLD_BOUNDS);
+    return { xMm: snapMm(pointerMm.xMm), yMm: snapMm(pointerMm.yMm) };
   }, [pointerMm, snapOn]);
 
   const snapMarkerPx = useMemo(() => {
     if (!desiredAnchorMm) return null;
-    return worldMmToScreenPx(view, desiredAnchorMm);
-  }, [desiredAnchorMm, view]);
+    return { x: mmToPx(desiredAnchorMm.xMm), y: mmToPx(desiredAnchorMm.yMm) };
+  }, [desiredAnchorMm]);
 
   const getPlacementCentreFromAnchor = (tool: Tool, anchor: PointMm): PointMm | null => {
     const bbox = getDefaultBoundingBoxMm(tool);
     if (!bbox) return null;
     const snappedTopLeft = snapOn ? { xMm: snapMm(anchor.xMm), yMm: snapMm(anchor.yMm) } : anchor;
-    const centre = centerFromTopLeftMm(snappedTopLeft, bbox);
-    return clampPointToBounds(centre, WORLD_BOUNDS);
+    return centerFromTopLeftMm(snappedTopLeft, bbox);
   };
 
   const ghostRamp: RampObj | null = useMemo(() => {
@@ -300,20 +209,12 @@ export default function Canvas2D({
     const pos = stageRef.current.getPointerPosition();
     if (pos) {
       setPointer({ x: pos.x, y: pos.y });
-      if (isPanningRef.current && panLastRef.current) {
-        const dx = pos.x - panLastRef.current.x;
-        const dy = pos.y - panLastRef.current.y;
-        setView((current) => clampView({ ...current, offset: { x: current.offset.x + dx, y: current.offset.y + dy } }, size));
-        panLastRef.current = pos;
-      }
     }
   };
 
   const handleStageLeave = () => {
     setPointer(null);
     setHoverId(null);
-    isPanningRef.current = false;
-    panLastRef.current = null;
   };
 
   const handleStageMouseDown = (evt: any) => {
@@ -322,17 +223,9 @@ export default function Canvas2D({
     if (!pos) return;
 
     const isStageClick = evt.target === stageRef.current || evt.target === stageRef.current.getStage();
-    const isPanButton = evt.evt.button === 1 || evt.evt.button === 2;
-
-    if (isStageClick && isPanButton) {
-      isPanningRef.current = true;
-      panLastRef.current = pos;
-      stageRef.current.container().style.cursor = "grabbing";
-      return;
-    }
 
     if ((activeTool === "ramp" || activeTool === "platform") && isStageClick) {
-      const anchor: PointMm = screenPxToWorldMm(view, { xPx: pos.x, yPx: pos.y });
+      const anchor: PointMm = { xMm: pxToMm(pos.x), yMm: pxToMm(pos.y) };
       const centre = getPlacementCentreFromAnchor(activeTool, anchor);
       if (!centre) return;
       onPlaceAt(activeTool, centre.xMm, centre.yMm);
@@ -349,40 +242,10 @@ export default function Canvas2D({
     evt.cancelBubble = true;
   };
 
-  const handleStageMouseUp = () => {
-    if (stageRef.current) {
-      stageRef.current.container().style.cursor = "";
-    }
-    isPanningRef.current = false;
-    panLastRef.current = null;
-  };
-
   const handleContextMenu = (evt: any) => {
     evt.evt.preventDefault();
     onSetActiveTool("none");
   };
-
-  const handleWheel = useCallback(
-    (evt: any) => {
-      evt.evt.preventDefault();
-      const pointerPos = stageRef.current?.getPointerPosition();
-      if (!pointerPos) return;
-
-      setView((current) => {
-        const worldBefore = screenPxToWorldMm(current, { xPx: pointerPos.x, yPx: pointerPos.y });
-        const zoomDirection = evt.evt.deltaY < 0 ? 1 : -1;
-        const nextScale = clamp(current.scale * (zoomDirection > 0 ? ZOOM_STEP : 1 / ZOOM_STEP), ZOOM_MIN, ZOOM_MAX);
-        const worldPx = mmToPx(worldBefore.xMm);
-        const worldPy = mmToPx(worldBefore.yMm);
-        const nextOffset = {
-          x: pointerPos.x - worldPx * nextScale,
-          y: pointerPos.y - worldPy * nextScale,
-        };
-        return clampView({ scale: nextScale, offset: nextOffset }, size);
-      });
-    },
-    [size],
-  );
 
   const handleObjectPointerDown = (evt: any, obj: Object2D) => {
     onSelect(obj.id);
@@ -409,7 +272,8 @@ export default function Canvas2D({
     }, undefined);
   };
 
-  const getObjectSnap = (obj: Object2D, proposedCentre: PointMm) => {
+  const getObjectSnap = (obj: Object2D, proposedPx: { x: number; y: number }) => {
+    const proposedCentre: PointMm = { xMm: pxToMm(proposedPx.x), yMm: pxToMm(proposedPx.y) };
     if (!snapOn) {
       setSnapGuide({ snappedPoint: null });
       return proposedCentre;
@@ -504,16 +368,16 @@ export default function Canvas2D({
       yMm: ySnappedToObject ? snappedTopLeft.yMm : snapMm(snappedTopLeft.yMm),
     };
 
-    return clampPointToBounds(centerFromTopLeftMm(gridSnappedTopLeft, bbox), WORLD_BOUNDS);
+    return centerFromTopLeftMm(gridSnappedTopLeft, bbox);
   };
 
   const handleObjectDragEnd = (evt: any, obj: Object2D) => {
     if (stageRef.current) {
       stageRef.current.container().style.cursor = "";
     }
-    const pointerPos = stageRef.current?.getPointerPosition();
-    const worldAtPointer = pointerPos ? screenPxToWorldMm(view, { xPx: pointerPos.x, yPx: pointerPos.y }) : null;
-    const snappedCentre = getObjectSnap(obj, worldAtPointer ?? { xMm: pxToMm(evt.target.x()), yMm: pxToMm(evt.target.y()) });
+    const xPx = evt.target.x();
+    const yPx = evt.target.y();
+    const snappedCentre = getObjectSnap(obj, { x: xPx, y: yPx });
     const snappedPx = { x: mmToPx(snappedCentre.xMm), y: mmToPx(snappedCentre.yMm) };
     evt.target.position(snappedPx);
     const xMm = snappedCentre.xMm;
@@ -532,11 +396,8 @@ export default function Canvas2D({
     const isSelected = obj.id === selectedId;
     const isHover = obj.id === hoverId;
     const draggable = isSelected && !obj.locked;
-    const dragBoundFunc = () => {
-      const pointerPos = stageRef.current?.getPointerPosition();
-      if (!pointerPos) return { x: mmToPx(obj.xMm), y: mmToPx(obj.yMm) };
-      const world = screenPxToWorldMm(view, { xPx: pointerPos.x, yPx: pointerPos.y });
-      const snappedCentre = getObjectSnap(obj, world);
+    const dragBoundFunc = (pos: any) => {
+      const snappedCentre = getObjectSnap(obj, pos);
       return { x: mmToPx(snappedCentre.xMm), y: mmToPx(snappedCentre.yMm) };
     };
     const hoverHandlers = {
@@ -588,61 +449,34 @@ export default function Canvas2D({
           onTouchEnd={handleStageLeave}
           onContextMenu={handleContextMenu}
           onMouseDown={handleStageMouseDown}
-          onMouseUp={handleStageMouseUp}
-          onWheel={handleWheel}
         >
           <Layer listening={false}>
-            <Grid2D width={size.width} height={size.height} view={view} worldBounds={WORLD_BOUNDS} />
+            <Grid2D width={size.width} height={size.height} />
           </Layer>
 
-          <Layer>
-            <Group x={view.offset.x} y={view.offset.y} scaleX={view.scale} scaleY={view.scale}>
-              {objectNodes}
-              {ghostRamp && <ShapeRamp2D obj={ghostRamp} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />}
-              {ghostPlatform && (
-                <ShapePlatform2D obj={ghostPlatform} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
-              )}
-            </Group>
-          </Layer>
+          <Layer>{objectNodes}</Layer>
 
           <Layer listening={false}>
             {snapGuide.snappedX !== undefined && (
               <Line
-                points={[
-                  Math.round(worldMmToScreenPx(view, { xMm: snapGuide.snappedX, yMm: 0 }).x) + 0.5,
-                  0,
-                  Math.round(worldMmToScreenPx(view, { xMm: snapGuide.snappedX, yMm: 0 }).x) + 0.5,
-                  size.height,
-                ]}
-                stroke="rgba(239,68,68,0.75)"
+                points={[mmToPx(snapGuide.snappedX), 0, mmToPx(snapGuide.snappedX), size.height]}
+                stroke="rgba(239,68,68,0.5)"
                 strokeWidth={1}
-                strokeScaleEnabled={false}
               />
             )}
             {snapGuide.snappedY !== undefined && (
               <Line
-                points={[
-                  0,
-                  Math.round(worldMmToScreenPx(view, { xMm: 0, yMm: snapGuide.snappedY }).y) + 0.5,
-                  size.width,
-                  Math.round(worldMmToScreenPx(view, { xMm: 0, yMm: snapGuide.snappedY }).y) + 0.5,
-                ]}
-                stroke="rgba(239,68,68,0.75)"
+                points={[0, mmToPx(snapGuide.snappedY), size.width, mmToPx(snapGuide.snappedY)]}
+                stroke="rgba(239,68,68,0.5)"
                 strokeWidth={1}
-                strokeScaleEnabled={false}
               />
             )}
             {snapGuide.snappedPoint && (
-              <Circle
-                x={Math.round(worldMmToScreenPx(view, { xMm: snapGuide.snappedPoint.xMm, yMm: snapGuide.snappedPoint.yMm }).x) + 0.5}
-                y={Math.round(worldMmToScreenPx(view, { xMm: snapGuide.snappedPoint.xMm, yMm: snapGuide.snappedPoint.yMm }).y) + 0.5}
-                radius={3}
-                fill="rgba(239,68,68,0.75)"
-                stroke="rgba(239,68,68,0.9)"
-                strokeWidth={1}
-                strokeScaleEnabled={false}
-              />
+              <Circle x={mmToPx(snapGuide.snappedPoint.xMm)} y={mmToPx(snapGuide.snappedPoint.yMm)} radius={4} fill="rgba(239,68,68,0.5)" />
             )}
+          </Layer>
+
+          <Layer listening={false}>
             {pointer && (
               <>
                 <Line points={[pointer.x, 0, pointer.x, size.height]} stroke="#cbd5e1" dash={[4, 4]} />
@@ -650,6 +484,12 @@ export default function Canvas2D({
               </>
             )}
             {snapMarkerPx && snapOn && <Circle x={snapMarkerPx.x} y={snapMarkerPx.y} radius={4} fill="#0ea5e9" opacity={0.8} />}
+            {ghostRamp && (
+              <ShapeRamp2D obj={ghostRamp} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
+            )}
+            {ghostPlatform && (
+              <ShapePlatform2D obj={ghostPlatform} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
+            )}
             {hudLabel && (
               <Group x={hudLabel.x} y={hudLabel.y}>
                 <Rect width={220} height={26} fill="rgba(17,24,39,0.8)" cornerRadius={6} />

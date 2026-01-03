@@ -170,9 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.3.5
-- Crisp CAD-style grid and snap guides with pixel-aligned rendering, zoom-to-cursor, and bounded 25m workspace.
-
 ### v0.3.4
 - Added undo/redo with toolbar buttons and keyboard shortcuts.
 
