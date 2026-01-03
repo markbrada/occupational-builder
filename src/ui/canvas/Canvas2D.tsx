@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
-import { LandingObj, Object2D, RampObj, Tool } from "../../model/types";
+import { BaseObj, LandingObj, Object2D, RampObj, Tool } from "../../model/types";
 import { newLandingAt, newRampAt } from "../../model/defaults";
 import { centerFromTopLeftMm, getDefaultBoundingBoxMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
 import { mmToPx, pxToMm, snapMm } from "../../model/units";
@@ -21,7 +21,7 @@ type Canvas2DProps = {
   onSelect: (id: string) => void;
   onClearSelection: () => void;
   onPlaceAt: (tool: Tool, xMm: number, yMm: number) => void;
-  onUpdateObject: (id: string, updater: (obj: Object2D) => Object2D) => void;
+  onUpdateObject: (id: string, patch: Partial<Object2D> | Partial<BaseObj>, commit?: boolean) => void;
   onDeleteObject: (id: string) => void;
   onSetActiveTool: (tool: Tool) => void;
 };
@@ -590,7 +590,7 @@ export default function Canvas2D({
     const snappedCentre = getObjectSnap(obj, proposedCentre);
     const snappedStage = worldToScreen(snappedCentre, camera);
     evt.target.setAbsolutePosition(snappedStage);
-    onUpdateObject(obj.id, (current) => ({ ...current, xMm: snappedCentre.xMm, yMm: snappedCentre.yMm }));
+    onUpdateObject(obj.id, { xMm: snappedCentre.xMm, yMm: snappedCentre.yMm }, true);
     setSnapGuide({ snappedPoint: null });
   };
 

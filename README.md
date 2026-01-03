@@ -170,6 +170,10 @@ Parameters:
 
 ## Changelog
 
+### v0.3.8
+- Added a single normalised object update pipeline with shared helpers for clamping millimetre values and normalising rotation.
+- Routed rotations, drags, and keyboard nudges through the new updater to keep undo steps clean while preparing the Inspector pathway.
+
 ### v0.3.7
 - Standardised ramp and landing objects on a shared base shape (dimensions, elevation, rotation, locking, measurements) ready for future stairs support.
 - Updated canvas and persistence to use a landing tool/kind discriminated union with defaulted measurement fields.

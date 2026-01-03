@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { newLandingAt, newRampAt } from "../model/defaults";
-import { Object2D, Snapshot, Tool } from "../model/types";
+import { updateObject, type ObjectPatch } from "../model/objectUpdate";
+import { Snapshot, Tool } from "../model/types";
 import { centerFromTopLeftMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../model/geometry";
 import { loadProject, saveProject } from "../model/storage";
 import { GRID_STEP_MM, snapMm } from "../model/units";
@@ -136,16 +137,8 @@ export default function AppShell() {
   );
 
   const handleUpdateObject = useCallback(
-    (id: string, updater: (obj: Object2D) => Object2D) => {
-      applySnapshot((present) => {
-        let changed = false;
-        const nextObjects = present.objects.map((obj) => {
-          if (obj.id !== id) return obj;
-          changed = true;
-          return updater(obj);
-        });
-        return changed ? { ...present, objects: nextObjects } : present;
-      }, true);
+    (id: string, patch: ObjectPatch, commitChange = false) => {
+      applySnapshot((present) => updateObject(present, id, patch), commitChange);
     },
     [applySnapshot],
   );
@@ -173,15 +166,11 @@ export default function AppShell() {
     (delta: number) => {
       applySnapshot((present) => {
         if (!present.selectedId) return present;
-        let changed = false;
-        const nextObjects = present.objects.map((obj) => {
-          if (obj.id !== present.selectedId) return obj;
-          changed = true;
-          const startingRotation = present.snapOn ? Math.round(obj.rotationDeg / 90) * 90 : obj.rotationDeg;
-          const nextRotation = ((startingRotation + delta) % 360 + 360) % 360;
-          return { ...obj, rotationDeg: nextRotation };
-        });
-        return changed ? { ...present, objects: nextObjects } : present;
+        const selected = present.objects.find((obj) => obj.id === present.selectedId);
+        if (!selected) return present;
+        const startingRotation = present.snapOn ? Math.round(selected.rotationDeg / 90) * 90 : selected.rotationDeg;
+        const nextRotation = startingRotation + delta;
+        return updateObject(present, selected.id, { rotationDeg: nextRotation });
       }, true);
     },
     [applySnapshot],
@@ -230,27 +219,24 @@ export default function AppShell() {
       if (event.key.startsWith("Arrow")) {
         event.preventDefault();
         applySnapshot((present) => {
-          if (!present.selectedId) return present;
-          let changed = false;
-          const nextObjects = present.objects.map((obj) => {
-            if (obj.id !== present.selectedId || obj.locked) return obj;
-            const bbox = getObjectBoundingBoxMm(obj);
-            const currentTopLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, bbox);
-            const nudgeStep = present.snapOn ? GRID_STEP_MM : FINE_NUDGE_MM;
-            const offset = { xMm: 0, yMm: 0 };
-            if (event.key === "ArrowUp") offset.yMm = -nudgeStep;
-            if (event.key === "ArrowDown") offset.yMm = nudgeStep;
-            if (event.key === "ArrowLeft") offset.xMm = -nudgeStep;
-            if (event.key === "ArrowRight") offset.xMm = nudgeStep;
-            const nextTopLeft = { xMm: currentTopLeft.xMm + offset.xMm, yMm: currentTopLeft.yMm + offset.yMm };
-            const snappedTopLeft = present.snapOn
-              ? { xMm: snapMm(nextTopLeft.xMm), yMm: snapMm(nextTopLeft.yMm) }
-              : nextTopLeft;
-            const nextCenter = centerFromTopLeftMm(snappedTopLeft, bbox);
-            changed = true;
-            return { ...obj, xMm: nextCenter.xMm, yMm: nextCenter.yMm };
-          });
-          return changed ? { ...present, objects: nextObjects } : present;
+          const selected = present.selectedId
+            ? present.objects.find((obj) => obj.id === present.selectedId)
+            : null;
+          if (!selected || selected.locked) return present;
+          const bbox = getObjectBoundingBoxMm(selected);
+          const currentTopLeft = topLeftFromCenterMm({ xMm: selected.xMm, yMm: selected.yMm }, bbox);
+          const nudgeStep = present.snapOn ? GRID_STEP_MM : FINE_NUDGE_MM;
+          const offset = { xMm: 0, yMm: 0 };
+          if (event.key === "ArrowUp") offset.yMm = -nudgeStep;
+          if (event.key === "ArrowDown") offset.yMm = nudgeStep;
+          if (event.key === "ArrowLeft") offset.xMm = -nudgeStep;
+          if (event.key === "ArrowRight") offset.xMm = nudgeStep;
+          const nextTopLeft = { xMm: currentTopLeft.xMm + offset.xMm, yMm: currentTopLeft.yMm + offset.yMm };
+          const snappedTopLeft = present.snapOn
+            ? { xMm: snapMm(nextTopLeft.xMm), yMm: snapMm(nextTopLeft.yMm) }
+            : nextTopLeft;
+          const nextCenter = centerFromTopLeftMm(snappedTopLeft, bbox);
+          return updateObject(present, selected.id, { xMm: nextCenter.xMm, yMm: nextCenter.yMm });
         }, true);
       }
     };
