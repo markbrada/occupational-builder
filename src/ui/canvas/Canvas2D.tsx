@@ -63,11 +63,11 @@ type Camera = {
 type ScreenPoint = { x: number; y: number };
 
 const SNAP_THRESHOLD_MM = 20;
-const WORKSPACE_SIZE_MM = 25000;
+const WORKSPACE_SIZE_MM = 40000;
 const HALF_WORKSPACE_MM = WORKSPACE_SIZE_MM / 2;
-const MIN_SCALE = 0.08;
+const MIN_SCALE = 0.16;
 const MAX_SCALE = 10;
-const VISIBLE_RATIO = 0.2;
+const VISIBLE_RATIO = 0.6;
 const WORKSPACE_HALF_PX = mmToPx(HALF_WORKSPACE_MM);
 
 const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
@@ -131,25 +131,38 @@ const worldToScreen = (point: PointMm, camera: Camera): ScreenPoint => {
 };
 
 const clampCamera = (camera: Camera, viewport: CanvasSize): Camera => {
-  const baseLeft = -WORKSPACE_HALF_PX * camera.scale;
-  const baseRight = WORKSPACE_HALF_PX * camera.scale;
-  const baseTop = -WORKSPACE_HALF_PX * camera.scale;
-  const baseBottom = WORKSPACE_HALF_PX * camera.scale;
+  const halfWorkspacePxScaled = WORKSPACE_HALF_PX * camera.scale;
+  const workspaceWidthScreen = halfWorkspacePxScaled * 2;
+  const workspaceHeightScreen = workspaceWidthScreen;
 
-  const workspaceWidthScreen = baseRight - baseLeft;
-  const workspaceHeightScreen = baseBottom - baseTop;
-  const minVisibleWidth = workspaceWidthScreen * VISIBLE_RATIO;
-  const minVisibleHeight = workspaceHeightScreen * VISIBLE_RATIO;
+  const minVisibleWidth = Math.min(workspaceWidthScreen * VISIBLE_RATIO, viewport.width);
+  const minVisibleHeight = Math.min(workspaceHeightScreen * VISIBLE_RATIO, viewport.height);
 
-  const minTx = minVisibleWidth - baseRight;
-  const maxTx = viewport.width - minVisibleWidth - baseLeft;
-  const minTy = minVisibleHeight - baseBottom;
-  const maxTy = viewport.height - minVisibleHeight - baseTop;
+  const screenLeft = camera.txPx - halfWorkspacePxScaled;
+  const screenRight = camera.txPx + halfWorkspacePxScaled;
+  const screenTop = camera.tyPx - halfWorkspacePxScaled;
+  const screenBottom = camera.tyPx + halfWorkspacePxScaled;
+
+  const minTx = minVisibleWidth - halfWorkspacePxScaled;
+  const maxTx = viewport.width - minVisibleWidth + halfWorkspacePxScaled;
+  const minTy = minVisibleHeight - halfWorkspacePxScaled;
+  const maxTy = viewport.height - minVisibleHeight + halfWorkspacePxScaled;
+
+  const txPx = clamp(
+    screenRight < minVisibleWidth ? minTx : screenLeft > viewport.width - minVisibleWidth ? maxTx : camera.txPx,
+    minTx,
+    maxTx,
+  );
+  const tyPx = clamp(
+    screenBottom < minVisibleHeight ? minTy : screenTop > viewport.height - minVisibleHeight ? maxTy : camera.tyPx,
+    minTy,
+    maxTy,
+  );
 
   return {
     scale: camera.scale,
-    txPx: clamp(camera.txPx, minTx, maxTx),
-    tyPx: clamp(camera.tyPx, minTy, maxTy),
+    txPx,
+    tyPx,
   };
 };
 export default function Canvas2D({

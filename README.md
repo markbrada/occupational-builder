@@ -170,6 +170,11 @@ Parameters:
 
 ## Changelog
 
+### v0.3.6
+- Enlarged workspace to 40m x 40m with updated grid bounds and clamping.
+- Reduced maximum zoom-out to keep the grid comfortably visible.
+- Tightened panning clamps so most of the workspace stays in view at all zoom levels.
+
 ### v0.3.5
 - Added CAD-style pan/zoom with bounded 25m workspace and crisp adaptive grid.
 
