@@ -1,13 +1,16 @@
 import { useMemo } from "react";
 import { Group, Line, Rect } from "react-konva";
+import { GRID_STEP_MM, mmToPx } from "../../model/units";
 
 type Grid2DProps = {
   width: number;
   height: number;
 };
 
-const MINOR_SPACING = 10;
-const MAJOR_SPACING = 50;
+const MINOR_SPACING_MM = GRID_STEP_MM;
+const MAJOR_SPACING_MM = GRID_STEP_MM * 5;
+const MINOR_SPACING = mmToPx(MINOR_SPACING_MM);
+const MAJOR_SPACING = mmToPx(MAJOR_SPACING_MM);
 
 export default function Grid2D({ width, height }: Grid2DProps) {
   const lines = useMemo(() => {

@@ -170,6 +170,11 @@ Parameters:
 
 ## Changelog
 
+### v0.2.6
+- Centralised millimetre↔pixel conversions with snapping helpers and grid-aware scaling.
+- Updated ramp/platform rendering to use centre-based groups with rotation and drag snapping in mm space.
+- Ensured placement and movement convert pointer pixels to millimetre centres while respecting snap.
+
 ### v0.2.5
 - Simplified tools by removing Move, defaulting to no active tool, and matching platform styling to ramps without on-shape labels.
 - Added snap state indicator, renamed Snap control, and ensured click-to-place/delete tools reset after single use with consistent selection outlines.

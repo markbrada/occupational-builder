@@ -1,17 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
-import { SNAP_MM } from "../../model/constants";
 import { Object2D, PlatformObj, RampObj, Tool } from "../../model/types";
 import { newPlatformAt, newRampAt } from "../../model/defaults";
+import { mmToPx, pxToMm, snapMm } from "../../model/units";
 import Grid2D from "./Grid2D";
 import ShapePlatform2D from "./ShapePlatform2D";
 import ShapeRamp2D from "./ShapeRamp2D";
-
-const MM_PER_PX = 10;
-
-const mmToPx = (mm: number) => mm / MM_PER_PX;
-const pxToMm = (px: number) => px * MM_PER_PX;
-const snapMm = (vMm: number) => Math.round(vMm / SNAP_MM) * SNAP_MM;
 
 type CanvasSize = {
   width: number;
@@ -226,7 +220,7 @@ export default function Canvas2D({
         onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
         ...hoverHandlers,
       };
-      return <ShapeRamp2D {...rampProps} mmToPx={mmToPx} />;
+      return <ShapeRamp2D {...rampProps} />;
     }
     const platformProps = {
       key: obj.id,
@@ -240,7 +234,7 @@ export default function Canvas2D({
       onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
       ...hoverHandlers,
     };
-    return <ShapePlatform2D {...platformProps} mmToPx={mmToPx} />;
+    return <ShapePlatform2D {...platformProps} />;
   });
 
   return (
@@ -272,26 +266,10 @@ export default function Canvas2D({
             )}
             {snapMarkerPx && snapOn && <Circle x={snapMarkerPx.x} y={snapMarkerPx.y} radius={4} fill="#0ea5e9" opacity={0.8} />}
             {ghostRamp && (
-              <ShapeRamp2D
-                obj={ghostRamp}
-                selected={false}
-                hover={false}
-                activeTool={activeTool}
-                draggable={false}
-                ghost
-                mmToPx={mmToPx}
-              />
+              <ShapeRamp2D obj={ghostRamp} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
             )}
             {ghostPlatform && (
-              <ShapePlatform2D
-                obj={ghostPlatform}
-                selected={false}
-                hover={false}
-                activeTool={activeTool}
-                draggable={false}
-                ghost
-                mmToPx={mmToPx}
-              />
+              <ShapePlatform2D obj={ghostPlatform} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
             )}
             {hudLabel && (
               <Group x={hudLabel.x} y={hudLabel.y}>

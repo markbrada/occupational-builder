@@ -1,5 +1,6 @@
 import { Group, Rect } from "react-konva";
 import { PlatformObj, Tool } from "../../model/types";
+import { mmToPx } from "../../model/units";
 
 type Props = {
   obj: PlatformObj;
@@ -8,7 +9,6 @@ type Props = {
   activeTool: Tool;
   draggable: boolean;
   ghost?: boolean;
-  mmToPx: (mm: number) => number;
   onPointerDown?: (evt: any) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -23,7 +23,6 @@ export default function ShapePlatform2D({
   activeTool,
   draggable,
   ghost = false,
-  mmToPx,
   onPointerDown,
   onMouseEnter,
   onMouseLeave,
@@ -42,6 +41,8 @@ export default function ShapePlatform2D({
           ? "#64748b"
           : "#0f172a";
   const opacity = ghost ? 0.35 : 1;
+  const rectX = -widthPx / 2;
+  const rectY = -heightPx / 2;
 
   return (
     <Group
@@ -53,12 +54,12 @@ export default function ShapePlatform2D({
       onMouseLeave={onMouseLeave}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      offsetX={widthPx / 2}
-      offsetY={heightPx / 2}
       rotation={obj.rotationDeg}
       listening={!ghost}
     >
       <Rect
+        x={rectX}
+        y={rectY}
         width={widthPx}
         height={heightPx}
         fill={fill}

@@ -1,5 +1,6 @@
 import { Group, Rect, Arrow } from "react-konva";
 import { RampObj, Tool } from "../../model/types";
+import { mmToPx } from "../../model/units";
 
 type Props = {
   obj: RampObj;
@@ -8,7 +9,6 @@ type Props = {
   activeTool: Tool;
   draggable: boolean;
   ghost?: boolean;
-  mmToPx: (mm: number) => number;
   onPointerDown?: (evt: any) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -23,7 +23,6 @@ export default function ShapeRamp2D({
   activeTool,
   draggable,
   ghost = false,
-  mmToPx,
   onPointerDown,
   onMouseEnter,
   onMouseLeave,
@@ -42,6 +41,10 @@ export default function ShapeRamp2D({
           ? "#64748b"
           : "#0f172a";
   const opacity = ghost ? 0.35 : 1;
+  const rectX = -widthPx / 2;
+  const rectY = -heightPx / 2;
+  const arrowStartX = -widthPx / 2 + widthPx * 0.1;
+  const arrowEndX = widthPx / 2 - widthPx * 0.1;
 
   return (
     <Group
@@ -53,12 +56,12 @@ export default function ShapeRamp2D({
       onMouseLeave={onMouseLeave}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      offsetX={widthPx / 2}
-      offsetY={heightPx / 2}
       rotation={obj.rotationDeg}
       listening={!ghost}
     >
       <Rect
+        x={rectX}
+        y={rectY}
         width={widthPx}
         height={heightPx}
         fill={fill}
@@ -69,7 +72,7 @@ export default function ShapeRamp2D({
       />
       {obj.showArrow && (
         <Arrow
-          points={[widthPx * 0.1, heightPx / 2, widthPx * 0.9, heightPx / 2]}
+          points={[arrowStartX, 0, arrowEndX, 0]}
           pointerLength={14}
           pointerWidth={14}
           stroke={stroke}
