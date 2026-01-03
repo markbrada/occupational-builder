@@ -170,10 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.2.7
-- Added resize handles for ramps and platforms with snapping, rotation-aware scaling, and minimum sizing.
-- Committed transformed dimensions back to mm on resize so dragging and selection continue working post-scale.
-
 ### v0.2.6
 - Centralised millimetre↔pixel conversions with snapping helpers and grid-aware scaling.
 - Updated ramp/platform rendering to use centre-based groups with rotation and drag snapping in mm space.

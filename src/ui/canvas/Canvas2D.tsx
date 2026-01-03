@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Group, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
-import type { Group as KonvaGroup } from "konva/lib/Group";
-import type { Transformer as KonvaTransformer } from "konva/lib/shapes/Transformer";
+import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import { Object2D, PlatformObj, RampObj, Tool } from "../../model/types";
 import { newPlatformAt, newRampAt } from "../../model/defaults";
 import { mmToPx, pxToMm, snapMm } from "../../model/units";
@@ -43,8 +41,6 @@ export default function Canvas2D({
 }: Canvas2DProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<any>(null);
-  const selectedNodeRef = useRef<KonvaGroup | null>(null);
-  const transformerRef = useRef<KonvaTransformer | null>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [pointer, setPointer] = useState<PointerState>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -93,22 +89,6 @@ export default function Canvas2D({
   }, []);
 
   const hasSize = size.width > 0 && size.height > 0;
-
-  const selectedObj = useMemo(() => objects.find((obj) => obj.id === selectedId) ?? null, [objects, selectedId]);
-  const minSizePx = useMemo(() => mmToPx(200), []);
-
-  useEffect(() => {
-    const transformer = transformerRef.current;
-    const node = selectedNodeRef.current;
-    if (!transformer) return;
-
-    if (node && selectedObj && !selectedObj.locked) {
-      transformer.nodes([node]);
-    } else {
-      transformer.nodes([]);
-    }
-    transformer.getLayer()?.batchDraw();
-  }, [selectedObj]);
 
   const pointerMm = useMemo(() => {
     if (!pointer) return null;
@@ -213,31 +193,6 @@ export default function Canvas2D({
     onUpdateObject(obj.id, (current) => ({ ...current, xMm, yMm }));
   };
 
-  const handleObjectTransformEnd = (evt: any, obj: Object2D) => {
-    const node = evt.target;
-    const newWidthPx = node.width() * node.scaleX();
-    const newHeightPx = node.height() * node.scaleY();
-
-    const newWidthMmRaw = pxToMm(newWidthPx);
-    const newHeightMmRaw = pxToMm(newHeightPx);
-    const newWidthMm = snapOn ? snapMm(newWidthMmRaw) : newWidthMmRaw;
-    const newHeightMm = snapOn ? snapMm(newHeightMmRaw) : newHeightMmRaw;
-
-    const snappedWidthPx = mmToPx(newWidthMm);
-    const snappedHeightPx = mmToPx(newHeightMm);
-
-    node.width(snappedWidthPx);
-    node.height(snappedHeightPx);
-    node.scaleX(1);
-    node.scaleY(1);
-
-    if (obj.kind === "ramp") {
-      onUpdateObject(obj.id, (current) => ({ ...current, runMm: newWidthMm, widthMm: newHeightMm }));
-      return;
-    }
-    onUpdateObject(obj.id, (current) => ({ ...current, lengthMm: newWidthMm, widthMm: newHeightMm }));
-  };
-
   const hudLabel = useMemo(() => {
     if (!pointer || (activeTool !== "ramp" && activeTool !== "platform")) return null;
     const label = activeTool === "ramp" ? "Click to place Ramp (Esc to cancel)" : "Click to place Platform (Esc to cancel)";
@@ -263,10 +218,9 @@ export default function Canvas2D({
         onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
         onDragStart: handleObjectDragStart,
         onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
-        onTransformEnd: (evt: any) => handleObjectTransformEnd(evt, obj),
         ...hoverHandlers,
       };
-      return <ShapeRamp2D {...rampProps} ref={isSelected ? selectedNodeRef : undefined} />;
+      return <ShapeRamp2D {...rampProps} />;
     }
     const platformProps = {
       key: obj.id,
@@ -278,10 +232,9 @@ export default function Canvas2D({
       onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
       onDragStart: handleObjectDragStart,
       onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
-      onTransformEnd: (evt: any) => handleObjectTransformEnd(evt, obj),
       ...hoverHandlers,
     };
-    return <ShapePlatform2D {...platformProps} ref={isSelected ? selectedNodeRef : undefined} />;
+    return <ShapePlatform2D {...platformProps} />;
   });
 
   return (
@@ -302,23 +255,7 @@ export default function Canvas2D({
             <Grid2D width={size.width} height={size.height} />
           </Layer>
 
-          <Layer>
-            {objectNodes}
-            {selectedId && (
-              <Transformer
-                ref={transformerRef}
-                rotateEnabled={false}
-                enabledAnchors={selectedObj && !selectedObj.locked ? ["top-left", "top-right", "bottom-left", "bottom-right"] : []}
-                keepRatio={false}
-                boundBoxFunc={(oldBox, newBox) => {
-                  if (newBox.width < minSizePx || newBox.height < minSizePx) {
-                    return oldBox;
-                  }
-                  return newBox;
-                }}
-              />
-            )}
-          </Layer>
+          <Layer>{objectNodes}</Layer>
 
           <Layer listening={false}>
             {pointer && (

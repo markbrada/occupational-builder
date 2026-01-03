@@ -1,6 +1,4 @@
-import { forwardRef } from "react";
 import { Group, Rect } from "react-konva";
-import type { Group as KonvaGroup } from "konva/lib/Group";
 import { PlatformObj, Tool } from "../../model/types";
 import { mmToPx } from "../../model/units";
 
@@ -16,26 +14,21 @@ type Props = {
   onMouseLeave?: () => void;
   onDragStart?: () => void;
   onDragEnd?: (evt: any) => void;
-  onTransformEnd?: (evt: any) => void;
 };
 
-const ShapePlatform2D = forwardRef<KonvaGroup, Props>(function ShapePlatform2D(
-  {
-    obj,
-    selected,
-    hover,
-    activeTool,
-    draggable,
-    ghost = false,
-    onPointerDown,
-    onMouseEnter,
-    onMouseLeave,
-    onDragStart,
-    onDragEnd,
-    onTransformEnd,
-  }: Props,
-  ref,
-) {
+export default function ShapePlatform2D({
+  obj,
+  selected,
+  hover,
+  activeTool,
+  draggable,
+  ghost = false,
+  onPointerDown,
+  onMouseEnter,
+  onMouseLeave,
+  onDragStart,
+  onDragEnd,
+}: Props) {
   const widthPx = mmToPx(obj.lengthMm);
   const heightPx = mmToPx(obj.widthMm);
   const fill = ghost ? "rgba(59,130,246,0.25)" : "#e5e7eb";
@@ -48,29 +41,25 @@ const ShapePlatform2D = forwardRef<KonvaGroup, Props>(function ShapePlatform2D(
           ? "#64748b"
           : "#0f172a";
   const opacity = ghost ? 0.35 : 1;
+  const rectX = -widthPx / 2;
+  const rectY = -heightPx / 2;
 
   return (
     <Group
-      ref={ref}
       x={mmToPx(obj.xMm)}
       y={mmToPx(obj.yMm)}
-      width={widthPx}
-      height={heightPx}
-      offsetX={widthPx / 2}
-      offsetY={heightPx / 2}
       draggable={draggable && !ghost}
       onPointerDown={onPointerDown}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onTransformEnd={onTransformEnd}
       rotation={obj.rotationDeg}
       listening={!ghost}
     >
       <Rect
-        x={0}
-        y={0}
+        x={rectX}
+        y={rectY}
         width={widthPx}
         height={heightPx}
         fill={fill}
@@ -81,6 +70,4 @@ const ShapePlatform2D = forwardRef<KonvaGroup, Props>(function ShapePlatform2D(
       />
     </Group>
   );
-});
-
-export default ShapePlatform2D;
+}
