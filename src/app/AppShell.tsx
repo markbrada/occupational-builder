@@ -167,7 +167,7 @@ export default function AppShell() {
       applySnapshot((present) => {
         if (!present.selectedId) return present;
         const selected = present.objects.find((obj) => obj.id === present.selectedId);
-        if (!selected) return present;
+        if (!selected || selected.locked) return present;
         const startingRotation = present.snapOn ? Math.round(selected.rotationDeg / 90) * 90 : selected.rotationDeg;
         const nextRotation = startingRotation + delta;
         return updateObject(present, selected.id, { rotationDeg: nextRotation });
@@ -247,6 +247,7 @@ export default function AppShell() {
 
   const canUndoAction = canUndo(history);
   const canRedoAction = canRedo(history);
+  const selectedObject = selectedId ? objects.find((obj) => obj.id === selectedId) ?? null : null;
 
   return (
     <div className="ob-root">
@@ -254,9 +255,6 @@ export default function AppShell() {
         <TopBar
           mode={mode}
           onSetMode={handleSetMode}
-          canRotate={Boolean(selectedId)}
-          onRotateLeft={() => handleRotateSelected(-90)}
-          onRotateRight={() => handleRotateSelected(90)}
           snapOn={snapOn}
           onUndo={handleUndo}
           onRedo={handleRedo}
@@ -292,7 +290,7 @@ export default function AppShell() {
           )}
         </main>
         <aside className="ob-right ob-panel">
-          <Inspector />
+          <Inspector selected={selectedObject} onUpdateObject={handleUpdateObject} onRotateSelected={handleRotateSelected} />
         </aside>
       </div>
       <div className="ob-statusBar">
