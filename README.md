@@ -1,6 +1,6 @@
 # Occupational Builder
 
-**Build version:** v0.3.4  
+**Build version:** v0.3.9  
 **Status:** Active development (v1 scope)
 
 Occupational Builder is a **design-only, browser-based ramp and platform builder** for occupational access scenarios.  
@@ -169,6 +169,9 @@ Parameters:
 ---
 
 ## Changelog
+
+### v0.3.9
+- Added the Inspector panel skeleton with shared dimension, elevation, rotation, quick-rotate, lock, and measurements placeholder controls for ramps and platforms while moving rotate buttons out of the top bar.
 
 ### v0.3.8
 - Added a single normalised object update pipeline with shared helpers for clamping millimetre values and normalising rotation.

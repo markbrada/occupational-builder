@@ -4,9 +4,6 @@ import { EditMode } from "../../app/AppShell";
 type TopBarProps = {
   mode: EditMode;
   onSetMode: (mode: EditMode) => void;
-  canRotate: boolean;
-  onRotateLeft: () => void;
-  onRotateRight: () => void;
   snapOn: boolean;
   canUndo: boolean;
   canRedo: boolean;
@@ -17,9 +14,6 @@ type TopBarProps = {
 export default function TopBar({
   mode,
   onSetMode,
-  canRotate,
-  onRotateLeft,
-  onRotateRight,
   snapOn,
   canUndo,
   canRedo,
@@ -42,14 +36,6 @@ export default function TopBar({
       <div className="top-bar__actions">
         <div className={`top-bar__snap ${snapOn ? "top-bar__snap--on" : "top-bar__snap--off"}`} aria-live="polite">
           Snap {snapOn ? "ON" : "OFF"}
-        </div>
-        <div className="top-bar__rotations">
-          <button type="button" className="mode-button mode-button--ghost" onClick={onRotateLeft} disabled={!canRotate}>
-            Rotate -90°
-          </button>
-          <button type="button" className="mode-button mode-button--ghost" onClick={onRotateRight} disabled={!canRotate}>
-            Rotate +90°
-          </button>
         </div>
         <div className="top-bar__modes">
           <button
