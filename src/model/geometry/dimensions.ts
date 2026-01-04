@@ -1,6 +1,6 @@
 import { DEFAULT_MEASUREMENT_OFFSET_MM } from "../defaults";
 import { MeasurementAnchor, MeasurementKey, Object2D, RampObj } from "../types";
-import { getObjectBoundingBoxMm, topLeftFromCenterMm, type PointMm } from "../geometry";
+import { getObjectBoundingBoxMm, getRampBodyBoundingBoxMm, topLeftFromCenterMm, type PointMm } from "../geometry";
 
 export type DimensionSegmentVariant = "length" | "width" | "wing" | "height" | "elevation";
 
@@ -25,7 +25,7 @@ export const DIMENSION_BRACKET_SPACING_MM = 60;
 
 const defaultAnchor: MeasurementAnchor = { offsetMm: DEFAULT_MEASUREMENT_OFFSET_MM, orientation: "auto" };
 
-const formatMm = (valueMm: number) => `${Math.round(valueMm)}mm`;
+const formatMm = (valueMm: number) => `${Math.round(valueMm)} mm`;
 
 const normaliseRotationDeg = (rotationDeg: number) => {
   const wrapped = rotationDeg % 360;
@@ -103,11 +103,20 @@ const buildWingDimensionSegment = (obj: RampObj, side: "left" | "right"): Dimens
 
 const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
   const bbox = getObjectBoundingBoxMm(obj);
+  const lengthBBox = obj.kind === "ramp" ? getRampBodyBoundingBoxMm(obj) : bbox;
+
   const topLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, bbox);
+  const lengthTopLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, lengthBBox);
+
   const left = topLeft.xMm;
   const right = left + bbox.widthMm;
   const top = topLeft.yMm;
   const bottom = top + bbox.heightMm;
+
+  const lengthLeft = lengthTopLeft.xMm;
+  const lengthRight = lengthLeft + lengthBBox.widthMm;
+  const lengthTop = lengthTopLeft.yMm;
+  const lengthBottom = lengthTop + lengthBBox.heightMm;
 
   const verticalLength = isLengthVertical(obj.rotationDeg);
   const segments: DimensionSegment[] = [];
@@ -121,20 +130,20 @@ const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
         ? {
             measurementKey: "L1",
             objectId: obj.id,
-            startMm: { xMm: left - offset, yMm: top },
-            endMm: { xMm: left - offset, yMm: bottom },
+            startMm: { xMm: lengthLeft - offset, yMm: lengthTop },
+            endMm: { xMm: lengthLeft - offset, yMm: lengthBottom },
             orientation: "vertical",
-            label: formatMm(bottom - top),
+            label: formatMm(lengthBottom - lengthTop),
             variant: "length",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           }
         : {
             measurementKey: "L1",
             objectId: obj.id,
-            startMm: { xMm: left, yMm: top - offset },
-            endMm: { xMm: right, yMm: top - offset },
+            startMm: { xMm: lengthLeft, yMm: lengthTop - offset },
+            endMm: { xMm: lengthRight, yMm: lengthTop - offset },
             orientation: "horizontal",
-            label: formatMm(right - left),
+            label: formatMm(lengthRight - lengthLeft),
             variant: "length",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           },
@@ -150,20 +159,20 @@ const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
         ? {
             measurementKey: "L2",
             objectId: obj.id,
-            startMm: { xMm: right + offset, yMm: top },
-            endMm: { xMm: right + offset, yMm: bottom },
+            startMm: { xMm: lengthRight + offset, yMm: lengthTop },
+            endMm: { xMm: lengthRight + offset, yMm: lengthBottom },
             orientation: "vertical",
-            label: formatMm(bottom - top),
+            label: formatMm(lengthBottom - lengthTop),
             variant: "length",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           }
         : {
             measurementKey: "L2",
             objectId: obj.id,
-            startMm: { xMm: left, yMm: bottom + offset },
-            endMm: { xMm: right, yMm: bottom + offset },
+            startMm: { xMm: lengthLeft, yMm: lengthBottom + offset },
+            endMm: { xMm: lengthRight, yMm: lengthBottom + offset },
             orientation: "horizontal",
-            label: formatMm(right - left),
+            label: formatMm(lengthRight - lengthLeft),
             variant: "length",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           },

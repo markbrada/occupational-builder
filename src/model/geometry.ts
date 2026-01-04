@@ -52,6 +52,18 @@ const rotatePoint = (point: PointMm, rotationDeg: number): PointMm => {
   return { xMm: point.xMm * cos - point.yMm * sin, yMm: point.xMm * sin + point.yMm * cos };
 };
 
+const getRectangularRampBodyPoints = (obj: RampObj): PointMm[] => {
+  const halfLength = obj.runMm / 2;
+  const halfWidth = obj.widthMm / 2;
+
+  return [
+    { xMm: -halfLength, yMm: -halfWidth },
+    { xMm: -halfLength, yMm: halfWidth },
+    { xMm: halfLength, yMm: halfWidth },
+    { xMm: halfLength, yMm: -halfWidth },
+  ];
+};
+
 const boundingBoxFromPoints = (points: PointMm[]): BoundingBoxMm => {
   const xs = points.map((p) => p.xMm);
   const ys = points.map((p) => p.yMm);
@@ -86,6 +98,12 @@ export const getObjectBoundingBoxMm = (obj: Object2D): BoundingBoxMm => {
   }
 
   return { widthMm: length, heightMm: width, offsetXMm, offsetYMm };
+};
+
+export const getRampBodyBoundingBoxMm = (obj: RampObj): BoundingBoxMm => {
+  const body = getRectangularRampBodyPoints(obj);
+  const rotated = body.map((point) => rotatePoint(point, obj.rotationDeg));
+  return boundingBoxFromPoints(rotated);
 };
 
 export const getDefaultBoundingBoxMm = (tool: Tool): SizeMm | null => {
