@@ -1,6 +1,6 @@
 # Occupational Builder
 
-**Build version:** v0.4.2  
+**Build version:** v0.4.5  
 **Status:** Active development (v1 scope)
 
 Occupational Builder is a **design-only, browser-based ramp and platform builder** for occupational access scenarios.  
@@ -169,6 +169,12 @@ Parameters:
 ---
 
 ## Changelog
+
+### v0.4.5
+- Prevented page-level scrollbars by constraining the root viewport height and hiding body overflow while keeping internal panels scrollable.
+
+### v0.4.4
+- Adjusted page and shell layout sizing to remove global scrollbars while keeping internal panels scrollable at varied viewport widths.
 
 ### v0.4.3
 - Added ramp Inspector arrow toggle plus greyed-out Gradient and Ratio readouts derived from Length and Height.
