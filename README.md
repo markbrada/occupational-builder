@@ -170,9 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.5.5
-- Swapped height brackets for corner leader callouts driven by measurement anchors, added leader-aware 2D rendering with black labels, and enabled snapping, outward-only draggable measurement offsets persisted with undo/redo.
-
 ### v0.5.4
 - Simplified 2D dimension rendering with centered text labels, CAD-like ticks, and consistent scaling/hit areas aligned to the world view.
 

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
-import { DIMENSION_BRACKET_SPACING_MM, DimensionSegment } from "../../model/geometry/dimensions";
+import { DimensionSegment } from "../../model/geometry/dimensions";
 import { BaseObj, LandingObj, MeasurementKey, Object2D, RampObj, Tool } from "../../model/types";
 import { newLandingAt, newRampAt } from "../../model/defaults";
 import { centerFromTopLeftMm, getDefaultBoundingBoxMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
@@ -66,7 +66,6 @@ type Camera = {
 };
 
 type ScreenPoint = { x: number; y: number };
-type MeasurementDrag = { objectId: string; measurementKey: MeasurementKey };
 
 const SNAP_THRESHOLD_MM = 20;
 const WORKSPACE_SIZE_MM = 40000;
@@ -75,7 +74,6 @@ const MIN_SCALE = 0.16;
 const MAX_SCALE = 10;
 const VISIBLE_RATIO = 0.6;
 const WORKSPACE_HALF_PX = mmToPx(HALF_WORKSPACE_MM);
-const ANCHOR_SNAP_MM = 10;
 
 const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
   const size = getObjectBoundingBoxMm(obj);
@@ -139,42 +137,6 @@ const worldToScreen = (point: PointMm, camera: Camera): ScreenPoint => {
   };
 };
 
-const clampOffset = (value: number) => Math.max(0, value);
-
-const computeOutwardDistance = (segment: DimensionSegment, pointerMm: PointMm, aabb: AabbMm): number => {
-  if (segment.variant === "height" && segment.leaderFromMm) {
-    const base = segment.leaderFromMm;
-    const target = segment.labelPositionMm ?? segment.endMm ?? segment.startMm;
-    const xDir = Math.sign((target?.xMm ?? base.xMm) - base.xMm) || 0;
-    const yDir = Math.sign((target?.yMm ?? base.yMm) - base.yMm) || -1;
-    const norm = Math.hypot(xDir, yDir) || 1;
-    const unit = { x: xDir / norm, y: yDir / norm };
-    const delta = { x: pointerMm.xMm - base.xMm, y: pointerMm.yMm - base.yMm };
-    const projection = delta.x * unit.x + delta.y * unit.y;
-    return clampOffset(projection);
-  }
-
-  if (segment.orientation === "horizontal") {
-    const isTop = segment.startMm.yMm <= (aabb.top + aabb.bottom) / 2;
-    const base = isTop ? aabb.top : aabb.bottom;
-    const direction = isTop ? -1 : 1;
-    return clampOffset((pointerMm.yMm - base) * direction);
-  }
-
-  const isLeft = segment.startMm.xMm <= (aabb.left + aabb.right) / 2;
-  const base = isLeft ? aabb.left : aabb.right;
-  const direction = isLeft ? -1 : 1;
-  return clampOffset((pointerMm.xMm - base) * direction);
-};
-
-const toAnchorOffset = (segment: DimensionSegment, outwardDistance: number): number => {
-  if (segment.variant === "elevation") {
-    const adjusted = clampOffset(outwardDistance - DIMENSION_BRACKET_SPACING_MM);
-    return clampOffset(adjusted * 2);
-  }
-  return clampOffset(outwardDistance);
-};
-
 const clampCamera = (camera: Camera, viewport: CanvasSize): Camera => {
   const halfWorkspacePxScaled = WORKSPACE_HALF_PX * camera.scale;
   const workspaceWidthScreen = halfWorkspacePxScaled * 2;
@@ -233,10 +195,8 @@ export default function Canvas2D({
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [snapGuide, setSnapGuide] = useState<SnapGuideState>({ snappedPoint: null });
   const [spacePanning, setSpacePanning] = useState(false);
-  const [draggingMeasurement, setDraggingMeasurement] = useState<MeasurementDrag | null>(null);
   const isPanningRef = useRef(false);
   const lastPanRef = useRef<ScreenPoint | null>(null);
-  const lastAnchorPointRef = useRef<PointMm | null>(null);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -349,43 +309,6 @@ export default function Canvas2D({
     };
   }, [pointerMm]);
 
-  const applyAnchorOffset = useCallback(
-    (objectId: string, measurementKey: MeasurementKey, pointerPoint: PointMm, commit: boolean) => {
-      const segment = dimensions.find((s) => s.objectId === objectId && s.measurementKey === measurementKey);
-      const obj = objects.find((o) => o.id === objectId);
-      if (!segment || !obj || obj.locked) return;
-      const aabb = getAabbMm(obj);
-      const outwardDistance = computeOutwardDistance(segment, pointerPoint, aabb);
-      const anchorOffset = snapMm(toAnchorOffset(segment, outwardDistance), ANCHOR_SNAP_MM);
-      lastAnchorPointRef.current = pointerPoint;
-      onUpdateObject(
-        objectId,
-        { measurementAnchors: { [measurementKey]: { offsetMm: anchorOffset } } } as Partial<Object2D>,
-        commit,
-      );
-    },
-    [dimensions, objects, onUpdateObject],
-  );
-
-  const handleStartAnchorDrag = useCallback(
-    (objectId: string, measurementKey: MeasurementKey) => {
-      const obj = objects.find((o) => o.id === objectId);
-      if (!obj || obj.locked) return;
-      setDraggingMeasurement({ objectId, measurementKey });
-    },
-    [objects],
-  );
-
-  const handleAnchorDragEnd = useCallback(() => {
-    if (!draggingMeasurement) return;
-    const anchorPoint = lastAnchorPointRef.current ?? pointerMmClamped;
-    if (anchorPoint) {
-      applyAnchorOffset(draggingMeasurement.objectId, draggingMeasurement.measurementKey, anchorPoint, true);
-    }
-    setDraggingMeasurement(null);
-    lastAnchorPointRef.current = null;
-  }, [applyAnchorOffset, draggingMeasurement, pointerMmClamped]);
-
   const desiredAnchorMm: PointMm | null = useMemo(() => {
     if (!pointerMmClamped) return null;
     if (!snapOn) return pointerMmClamped;
@@ -448,11 +371,6 @@ export default function Canvas2D({
     if (!stageRef.current || !camera) return;
     const pos = stageRef.current.getPointerPosition();
     if (!pos) return;
-    const worldPoint = screenToWorldMm(pos, camera);
-    const clampedPoint = {
-      xMm: clamp(worldPoint.xMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
-      yMm: clamp(worldPoint.yMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
-    };
 
     if (isPanningRef.current) {
       const last = lastPanRef.current ?? pos;
@@ -464,10 +382,6 @@ export default function Canvas2D({
         return next;
       });
       lastPanRef.current = pos;
-    }
-
-    if (draggingMeasurement) {
-      applyAnchorOffset(draggingMeasurement.objectId, draggingMeasurement.measurementKey, clampedPoint, false);
     }
 
     setPointer({ x: pos.x, y: pos.y });
@@ -483,12 +397,10 @@ export default function Canvas2D({
 
   const handleStageMouseUp = () => {
     stopPanning();
-    handleAnchorDragEnd();
   };
 
   const handleStageLeave = () => {
     stopPanning();
-    handleAnchorDragEnd();
     setPointer(null);
     setHoverId(null);
   };
@@ -775,17 +687,15 @@ export default function Canvas2D({
               <Group {...worldGroupProps} {...workspaceClip}>
                 <Dimensions2D
                   objects={objects}
-                dimensions={dimensions}
-                cameraScale={camera.scale}
-                selectedId={selectedId}
-                selectedMeasurementKey={selectedMeasurementKey}
-                onSelect={onSelect}
-                onSelectMeasurement={onSelectMeasurement}
-                onStartAnchorDrag={handleStartAnchorDrag}
-                onEndAnchorDrag={handleAnchorDragEnd}
-              />
-            </Group>
-          </Layer>
+                  dimensions={dimensions}
+                  cameraScale={camera.scale}
+                  selectedId={selectedId}
+                  selectedMeasurementKey={selectedMeasurementKey}
+                  onSelect={onSelect}
+                  onSelectMeasurement={onSelectMeasurement}
+                />
+              </Group>
+            </Layer>
 
             <Layer listening={false}>
               <Group {...worldGroupProps} {...workspaceClip}>
