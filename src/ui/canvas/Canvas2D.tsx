@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import { DimensionSegment } from "../../model/geometry/dimensions";
 import { BaseObj, LandingObj, MeasurementKey, Object2D, RampObj, Tool } from "../../model/types";
@@ -656,6 +656,32 @@ export default function Canvas2D({
     return <ShapeLanding2D {...landingProps} />;
   });
 
+  const handleUpdateAnchor = useCallback(
+    (id: string, key: MeasurementKey, offsetMm: number, commit?: boolean) => {
+      const target = objects.find((candidate) => candidate.id === id);
+      if (!target) return;
+      const nextAnchors = {
+        ...target.measurementAnchors,
+        [key]: { ...target.measurementAnchors[key], offsetMm: Math.max(0, Math.round(offsetMm)) },
+      };
+      onUpdateObject(id, { measurementAnchors: nextAnchors }, commit);
+    },
+    [objects, onUpdateObject],
+  );
+
+  const handleUpdateLabel = useCallback(
+    (id: string, key: MeasurementKey, position: { xMm: number; yMm: number }, commit?: boolean) => {
+      const target = objects.find((candidate) => candidate.id === id);
+      if (!target) return;
+      const nextLabels = {
+        ...target.measurementLabels,
+        [key]: { xMm: Math.round(position.xMm), yMm: Math.round(position.yMm) },
+      };
+      onUpdateObject(id, { measurementLabels: nextLabels }, commit);
+    },
+    [objects, onUpdateObject],
+  );
+
   return (
     <div className="ob-canvasHost" ref={containerRef} data-tool={activeTool}>
       {hasSize && camera ? (
@@ -693,6 +719,8 @@ export default function Canvas2D({
                   selectedMeasurementKey={selectedMeasurementKey}
                   onSelect={onSelect}
                   onSelectMeasurement={onSelectMeasurement}
+                  onUpdateAnchor={handleUpdateAnchor}
+                  onUpdateLabel={handleUpdateLabel}
                 />
               </Group>
             </Layer>

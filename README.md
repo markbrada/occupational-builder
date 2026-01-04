@@ -170,6 +170,11 @@ Parameters:
 
 ## Changelog
 
+### v0.5.5
+- Kept ramp base length/width dimensions independent of wing spans while preserving separate wing measurements.
+- Slimmed dimension strokes/text and added draggable handles that snap offsets outward, plus draggable height/elevation labels that stay within each footprint and persist with undo/redo.
+- Stored per-object label positions for vertical metrics alongside existing anchor offsets, persisting through updates and history.
+
 ### v0.5.4
 - Updated 2D dimension styling to CAD-blue lines with centered black-on-white labels that scale with geometry and use square ticks.
 - Swapped the height bracket for a horizontal level-style leader that displays `H` measurements in-line while preserving elevation and wing dimensions.

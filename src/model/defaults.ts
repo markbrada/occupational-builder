@@ -1,4 +1,11 @@
-import { LandingObj, MEASUREMENT_KEYS, MeasurementAnchors, MeasurementState, RampObj } from "./types";
+import {
+  LandingObj,
+  MEASUREMENT_KEYS,
+  MeasurementAnchors,
+  MeasurementLabelPositions,
+  MeasurementState,
+  RampObj,
+} from "./types";
 
 export const makeId = (): string => `obj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -22,6 +29,11 @@ const defaultMeasurements = (elevationMm: number): MeasurementState =>
     {} as MeasurementState,
   );
 
+const defaultMeasurementLabels = (): MeasurementLabelPositions => ({
+  H: { xMm: 0, yMm: 0 },
+  E: { xMm: 0, yMm: 0 },
+});
+
 export const DEFAULT_RAMP_RUN_MM = 1800;
 export const DEFAULT_RAMP_WIDTH_MM = 1000;
 export const DEFAULT_RAMP_HEIGHT_MM = 300;
@@ -39,6 +51,7 @@ export const newRampAt = (xMm: number, yMm: number): RampObj => ({
   locked: false,
   measurements: defaultMeasurements(0),
   measurementAnchors: defaultMeasurementAnchors(),
+  measurementLabels: defaultMeasurementLabels(),
   runMm: DEFAULT_RAMP_RUN_MM,
   showArrow: true,
   hasLeftWing: false,
@@ -64,4 +77,5 @@ export const newLandingAt = (xMm: number, yMm: number): LandingObj => ({
   locked: false,
   measurements: defaultMeasurements(0),
   measurementAnchors: defaultMeasurementAnchors(),
+  measurementLabels: defaultMeasurementLabels(),
 });

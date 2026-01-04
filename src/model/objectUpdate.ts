@@ -5,6 +5,8 @@ import {
   MeasurementAnchors,
   MeasurementAnchorsPatch,
   MeasurementKey,
+  MeasurementLabelPatch,
+  MeasurementLabelPositions,
   MeasurementState,
   Object2D,
   RampObj,
@@ -50,6 +52,23 @@ const mergeMeasurementAnchors = (current: MeasurementAnchors, patch?: Measuremen
   );
 };
 
+const mergeMeasurementLabels = (current: MeasurementLabelPositions, patch?: MeasurementLabelPatch): MeasurementLabelPositions => {
+  if (!patch) return current;
+  return MEASUREMENT_KEYS.reduce<MeasurementLabelPositions>(
+    (acc, key) => ({
+      ...acc,
+      [key]:
+        key === "H" || key === "E"
+          ? {
+              xMm: patch[key]?.xMm ?? current[key]?.xMm ?? 0,
+              yMm: patch[key]?.yMm ?? current[key]?.yMm ?? 0,
+            }
+          : acc[key],
+    }),
+    { ...current },
+  );
+};
+
 const normaliseBaseObject = (obj: Object2D): Object2D => ({
   ...obj,
   lengthMm: clampInt(obj.lengthMm, 0),
@@ -81,6 +100,9 @@ const measurementsEqual = (a: MeasurementState, b: MeasurementState): boolean =>
 const anchorsEqual = (a: MeasurementAnchors, b: MeasurementAnchors): boolean =>
   MEASUREMENT_KEYS.every((key) => a[key].offsetMm === b[key].offsetMm && a[key].orientation === b[key].orientation);
 
+const labelsEqual = (a: MeasurementLabelPositions, b: MeasurementLabelPositions): boolean =>
+  MEASUREMENT_KEYS.every((key) => (a[key]?.xMm ?? 0) === (b[key]?.xMm ?? 0) && (a[key]?.yMm ?? 0) === (b[key]?.yMm ?? 0));
+
 const objectsEqual = (a: Object2D, b: Object2D): boolean => {
   const baseEqual =
     a.id === b.id &&
@@ -94,7 +116,8 @@ const objectsEqual = (a: Object2D, b: Object2D): boolean => {
     a.rotationDeg === b.rotationDeg &&
     a.locked === b.locked &&
     measurementsEqual(a.measurements, b.measurements) &&
-    anchorsEqual(a.measurementAnchors, b.measurementAnchors);
+    anchorsEqual(a.measurementAnchors, b.measurementAnchors) &&
+    labelsEqual(a.measurementLabels, b.measurementLabels);
 
   if (!baseEqual) return false;
 
@@ -113,10 +136,18 @@ const objectsEqual = (a: Object2D, b: Object2D): boolean => {
 };
 
 const applyPatchToRamp = (obj: RampObj, patch: ObjectPatch): RampObj => {
-  const { kind: _ignoredKind, measurements, measurementAnchors, ...rest } = patch as Partial<RampObj>;
+  const { kind: _ignoredKind, measurements, measurementAnchors, measurementLabels, ...rest } = patch as Partial<RampObj>;
   const mergedMeasurements = mergeMeasurements(obj.measurements, measurements);
   const mergedAnchors = mergeMeasurementAnchors(obj.measurementAnchors, measurementAnchors);
-  const candidate: RampObj = { ...obj, ...rest, measurements: mergedMeasurements, measurementAnchors: mergedAnchors, kind: "ramp" };
+  const mergedLabels = mergeMeasurementLabels(obj.measurementLabels, measurementLabels);
+  const candidate: RampObj = {
+    ...obj,
+    ...rest,
+    measurements: mergedMeasurements,
+    measurementAnchors: mergedAnchors,
+    measurementLabels: mergedLabels,
+    kind: "ramp",
+  };
   return normaliseRampObject(candidate);
 };
 
@@ -131,11 +162,20 @@ const applyPatchToLanding = (obj: LandingObj, patch: ObjectPatch): LandingObj =>
     rightWingSizeMm: _ignoreRightWingSize,
     measurements,
     measurementAnchors,
+    measurementLabels,
     ...rest
   } = patch as Partial<RampObj>;
   const mergedMeasurements = mergeMeasurements(obj.measurements, measurements);
   const mergedAnchors = mergeMeasurementAnchors(obj.measurementAnchors, measurementAnchors);
-  const candidate: LandingObj = { ...obj, ...rest, measurements: mergedMeasurements, measurementAnchors: mergedAnchors, kind: "landing" };
+  const mergedLabels = mergeMeasurementLabels(obj.measurementLabels, measurementLabels);
+  const candidate: LandingObj = {
+    ...obj,
+    ...rest,
+    measurements: mergedMeasurements,
+    measurementAnchors: mergedAnchors,
+    measurementLabels: mergedLabels,
+    kind: "landing",
+  };
   return normaliseLandingObject(candidate);
 };
 
