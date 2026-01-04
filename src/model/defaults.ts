@@ -13,11 +13,11 @@ const defaultMeasurementAnchors = (): MeasurementAnchors =>
     {} as MeasurementAnchors,
   );
 
-const defaultMeasurements = (): MeasurementState =>
+const defaultMeasurements = (elevationMm: number): MeasurementState =>
   MEASUREMENT_KEYS.reduce<MeasurementState>(
     (acc, key) => ({
       ...acc,
-      [key]: false,
+      [key]: key === "E" ? elevationMm > 0 : true,
     }),
     {} as MeasurementState,
   );
@@ -37,7 +37,7 @@ export const newRampAt = (xMm: number, yMm: number): RampObj => ({
   elevationMm: 0,
   rotationDeg: 0,
   locked: false,
-  measurements: defaultMeasurements(),
+  measurements: defaultMeasurements(0),
   measurementAnchors: defaultMeasurementAnchors(),
   runMm: DEFAULT_RAMP_RUN_MM,
   showArrow: true,
@@ -62,6 +62,6 @@ export const newLandingAt = (xMm: number, yMm: number): LandingObj => ({
   elevationMm: 0,
   rotationDeg: 0,
   locked: false,
-  measurements: defaultMeasurements(),
+  measurements: defaultMeasurements(0),
   measurementAnchors: defaultMeasurementAnchors(),
 });
