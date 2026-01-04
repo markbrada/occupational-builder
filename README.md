@@ -170,6 +170,9 @@ Parameters:
 
 ## Changelog
 
+### v0.5.0
+- Added a Canvas2D dimension overlay that uses measurement toggles to draw selection-aware horizontal/vertical ticks with millimetre labels and compact height/elevation brackets offset from each face.
+
 ### v0.4.5
 - Locked the document and app shell to the viewport with hidden overflow (with clip where supported) to remove page scrollbars while preserving scrolling within the left and right panels.
 
