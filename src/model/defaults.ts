@@ -3,16 +3,6 @@ import { LandingObj, MEASUREMENT_KEYS, MeasurementAnchors, MeasurementState, Ram
 export const makeId = (): string => `obj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
 export const DEFAULT_MEASUREMENT_OFFSET_MM = 200;
-export const DEFAULT_DIMENSION_OFFSET_MM = DEFAULT_MEASUREMENT_OFFSET_MM;
-
-const defaultDimensionOffsets = () =>
-  MEASUREMENT_KEYS.reduce<Record<(typeof MEASUREMENT_KEYS)[number], number>>(
-    (acc, key) => ({
-      ...acc,
-      [key]: DEFAULT_DIMENSION_OFFSET_MM,
-    }),
-    {} as Record<(typeof MEASUREMENT_KEYS)[number], number>,
-  );
 
 const defaultMeasurementAnchors = (): MeasurementAnchors =>
   MEASUREMENT_KEYS.reduce<MeasurementAnchors>(
@@ -49,7 +39,6 @@ export const newRampAt = (xMm: number, yMm: number): RampObj => ({
   locked: false,
   measurements: defaultMeasurements(0),
   measurementAnchors: defaultMeasurementAnchors(),
-  dimensionOffsetsMm: defaultDimensionOffsets(),
   runMm: DEFAULT_RAMP_RUN_MM,
   showArrow: true,
   hasLeftWing: false,
@@ -75,5 +64,4 @@ export const newLandingAt = (xMm: number, yMm: number): LandingObj => ({
   locked: false,
   measurements: defaultMeasurements(0),
   measurementAnchors: defaultMeasurementAnchors(),
-  dimensionOffsetsMm: defaultDimensionOffsets(),
 });

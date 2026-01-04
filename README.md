@@ -170,10 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.5.4
-- Restyled 2D dimensions to CAD-like blue lines with black, world-scaled text (no boxes) and leader-based height/elevation callouts.
-- Added per-dimension draggable offsets (snapped, undoable) stored on each object for plan and wing measurements.
-
 ### v0.5.3
 - Fixed the Inspector crash on load by safely handling empty selections.
 - Added a shared dimension geometry generator to supply reusable annotated segments for current 2D and future 3D renderers.

@@ -1,7 +1,6 @@
 import { useMemo } from "react";
-import { Group, Line, Text } from "react-konva";
-import type { DimensionSegment, LeaderDimensionSegment, PlanDimensionSegment } from "../../model/geometry/dimensions";
-import { DIMENSION_HIT_STROKE_MM, DIMENSION_STROKE_WIDTH_MM, DIMENSION_TEXT_GAP_MM, DIMENSION_TEXT_SIZE_MM, DIMENSION_TICK_LENGTH_MM } from "../../model/geometry/dimensions";
+import { Group, Line, Rect, Text } from "react-konva";
+import type { DimensionSegment } from "../../model/geometry/dimensions";
 import { MeasurementKey, Object2D } from "../../model/types";
 import { mmToPx } from "../../model/units";
 
@@ -13,61 +12,56 @@ type Dimensions2DProps = {
   selectedMeasurementKey: MeasurementKey | null;
   onSelect: (id: string) => void;
   onSelectMeasurement: (id: string, key: MeasurementKey) => void;
-  onBeginDrag: (segment: PlanDimensionSegment) => void;
-  onHoverCursor: (cursor: string | null) => void;
 };
+
+const LABEL_PADDING = 6;
+const LABEL_FONT_SIZE = 14;
 
 const measureTextWidth = (text: string, fontSize: number) => text.length * fontSize * 0.6;
 
-type PlanDimensionLineProps = PlanDimensionSegment & {
+type DimensionLineProps = DimensionSegment & {
+  cameraScale: number;
   color: string;
-  textColor: string;
   isSelected: boolean;
   onPointerDown: () => void;
-  onHoverCursor: (cursor: string | null) => void;
 };
 
-const PlanDimensionLine = ({
+const DimensionLine = ({
   startMm,
   endMm,
   orientation,
   label,
   tickLengthMm,
-  outwardNormal,
-  offsetMm,
+  cameraScale,
   color,
-  textColor,
   isSelected,
   onPointerDown,
-  onHoverCursor,
-}: PlanDimensionLineProps) => {
-  void isSelected;
-  const strokeWidth = mmToPx(DIMENSION_STROKE_WIDTH_MM);
-  const hitStrokeWidth = mmToPx(DIMENSION_HIT_STROKE_MM);
-  const fontSize = mmToPx(DIMENSION_TEXT_SIZE_MM);
-  const gapPx = mmToPx(DIMENSION_TEXT_GAP_MM);
+}: DimensionLineProps) => {
+  const strokeWidth = 2 / cameraScale;
+  const hitStrokeWidth = 10 / cameraScale;
+  const fontSize = LABEL_FONT_SIZE / cameraScale;
+  const padding = LABEL_PADDING / cameraScale;
   const startPx = { x: mmToPx(startMm.xMm), y: mmToPx(startMm.yMm) };
   const endPx = { x: mmToPx(endMm.xMm), y: mmToPx(endMm.yMm) };
   const tickHalf = mmToPx(tickLengthMm) / 2;
-  const centerPx = { x: (startPx.x + endPx.x) / 2, y: (startPx.y + endPx.y) / 2 };
-  const labelPx = { x: centerPx.x + outwardNormal.xMm * gapPx, y: centerPx.y + outwardNormal.yMm * gapPx };
-  const labelWidth = measureTextWidth(label, fontSize);
-  const labelHeight = fontSize;
+  const center = { x: (startPx.x + endPx.x) / 2, y: (startPx.y + endPx.y) / 2 };
+  const labelWidth = measureTextWidth(label, fontSize) + padding * 2;
+  const labelHeight = fontSize + padding * 2;
 
-  const cursor = orientation === "horizontal" ? "ns-resize" : "ew-resize";
+  const labelX =
+    orientation === "horizontal" ? center.x - labelWidth / 2 : Math.min(startPx.x, endPx.x) - labelWidth - padding;
+  const labelY = center.y - labelHeight / 2;
 
   const handlePointerDown = (evt: any) => {
     evt.cancelBubble = true;
     onPointerDown();
   };
 
-  const handlePointerEnter = () => onHoverCursor(cursor);
-  const handlePointerLeave = () => onHoverCursor(null);
-
-  const strokeColor = isSelected ? color : color;
+  const fillColor = isSelected ? "#dbeafe" : "#f8fafc";
+  const strokeColor = isSelected ? "#2563eb" : color;
 
   return (
-    <Group onPointerDown={handlePointerDown} listening onPointerEnter={handlePointerEnter} onPointerLeave={handlePointerLeave}>
+    <Group onPointerDown={handlePointerDown} listening>
       <Line
         points={[startPx.x, startPx.y, endPx.x, endPx.y]}
         stroke={strokeColor}
@@ -106,37 +100,17 @@ const PlanDimensionLine = ({
           />
         </>
       )}
-      <Text
-        x={labelPx.x - labelWidth / 2}
-        y={labelPx.y - labelHeight / 2}
-        text={label}
-        fontSize={fontSize}
-        fill={textColor}
-        align="center"
+      <Rect
+        x={labelX}
+        y={labelY}
         width={labelWidth}
+        height={labelHeight}
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        cornerRadius={4 / cameraScale}
       />
-    </Group>
-  );
-};
-
-type LeaderDimensionProps = LeaderDimensionSegment & {
-  color: string;
-  textColor: string;
-};
-
-const LeaderDimension = ({ pointsMm, textAnchorMm, label, color, textColor }: LeaderDimensionProps) => {
-  const strokeWidth = mmToPx(DIMENSION_STROKE_WIDTH_MM);
-  const fontSize = mmToPx(DIMENSION_TEXT_SIZE_MM);
-  const pointsPx = pointsMm.flatMap((pt) => [mmToPx(pt.xMm), mmToPx(pt.yMm)]);
-  const textX = mmToPx(textAnchorMm.xMm + 10);
-  const textY = mmToPx(textAnchorMm.yMm);
-  const labelWidth = measureTextWidth(label, fontSize);
-  const labelHeight = fontSize;
-
-  return (
-    <Group listening={false}>
-      <Line points={pointsPx} stroke={color} strokeWidth={strokeWidth} lineCap="round" lineJoin="round" />
-      <Text x={textX} y={textY - labelHeight / 2} text={label} fontSize={fontSize} fill={textColor} offsetX={0} />
+      <Text x={labelX + padding} y={labelY + padding} text={label} fontSize={fontSize} fill={strokeColor} />
     </Group>
   );
 };
@@ -149,10 +123,7 @@ export default function Dimensions2D({
   selectedMeasurementKey,
   onSelect,
   onSelectMeasurement,
-  onBeginDrag,
-  onHoverCursor,
 }: Dimensions2DProps) {
-  void cameraScale;
   const dimensionsByObject = useMemo(() => {
     return dimensions.reduce<Record<string, DimensionSegment[]>>((acc, segment) => {
       acc[segment.objectId] = acc[segment.objectId] ? [...acc[segment.objectId], segment] : [segment];
@@ -165,40 +136,19 @@ export default function Dimensions2D({
       {objects.map((obj) => {
         const lines = dimensionsByObject[obj.id] ?? [];
         if (lines.length === 0) return null;
-        const color = "#2563eb";
-        const textColor = "#0f172a";
+        const color = obj.id === selectedId ? "#2563eb" : obj.locked ? "#94a3b8" : "#0f172a";
         return (
           <Group key={`dim-${obj.id}`}>
-            {lines.map((line, idx) => {
-              if (line.kind === "leader") {
-                return (
-                  <LeaderDimension
-                    key={`${obj.id}-${line.measurementKey}-${idx}`}
-                    {...(line as LeaderDimensionSegment)}
-                    color={color}
-                    textColor={textColor}
-                  />
-                );
-              }
-
-              const planLine = line as PlanDimensionSegment;
-              return (
-                <PlanDimensionLine
-                  key={`${obj.id}-${planLine.measurementKey}-${idx}`}
-                  {...planLine}
-                  tickLengthMm={planLine.tickLengthMm || DIMENSION_TICK_LENGTH_MM}
-                  color={color}
-                  textColor={textColor}
-                  isSelected={selectedMeasurementKey === planLine.measurementKey && selectedId === obj.id}
-                  onPointerDown={() => {
-                    onSelect(obj.id);
-                    onSelectMeasurement(obj.id, planLine.measurementKey);
-                    onBeginDrag(planLine);
-                  }}
-                  onHoverCursor={onHoverCursor}
-                />
-              );
-            })}
+            {lines.map((line, idx) => (
+              <DimensionLine
+                key={`${obj.id}-${line.measurementKey}-${idx}`}
+                {...line}
+                cameraScale={cameraScale}
+                color={color}
+                isSelected={selectedMeasurementKey === line.measurementKey && selectedId === obj.id}
+                onPointerDown={() => onSelectMeasurement(obj.id, line.measurementKey)}
+              />
+            ))}
           </Group>
         );
       })}

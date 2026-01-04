@@ -3,7 +3,6 @@ import {
   DEFAULT_LANDING_LENGTH_MM,
   DEFAULT_LANDING_WIDTH_MM,
   DEFAULT_MEASUREMENT_OFFSET_MM,
-  DEFAULT_DIMENSION_OFFSET_MM,
   DEFAULT_RAMP_HEIGHT_MM,
   DEFAULT_RAMP_RUN_MM,
   DEFAULT_RAMP_WIDTH_MM,
@@ -13,7 +12,6 @@ import {
   MEASUREMENT_KEYS,
   MeasurementAnchors,
   MeasurementKey,
-  DimensionOffsetsMm,
   MeasurementState,
   Object2D,
   RampObj,
@@ -103,13 +101,6 @@ const normaliseMeasurementAnchors = (value: any): MeasurementAnchors => {
   );
 };
 
-const normaliseDimensionOffsets = (value: any): DimensionOffsetsMm =>
-  MEASUREMENT_KEYS.reduce<DimensionOffsetsMm>((acc, key) => {
-    const raw = value?.[key];
-    acc[key] = isNumber(raw) ? raw : DEFAULT_DIMENSION_OFFSET_MM;
-    return acc;
-  }, {} as DimensionOffsetsMm);
-
 const toRamp = (value: any): RampObj | null => {
   if (!value || value.kind !== "ramp" || !isString(value.id) || !isNumber(value.xMm) || !isNumber(value.yMm)) return null;
 
@@ -130,7 +121,6 @@ const toRamp = (value: any): RampObj | null => {
     locked: isBoolean(value.locked) ? value.locked : false,
     measurements: normaliseMeasurements(value.measurements, value.elevationMm ?? 0),
     measurementAnchors: normaliseMeasurementAnchors(value.measurementAnchors),
-    dimensionOffsetsMm: normaliseDimensionOffsets(value.dimensionOffsetsMm),
     runMm: isNumber(value.runMm) ? value.runMm : lengthMm,
     showArrow: isBoolean(value.showArrow) ? value.showArrow : true,
     hasLeftWing: isBoolean(value.hasLeftWing) ? value.hasLeftWing : false,
@@ -171,7 +161,6 @@ const toLanding = (value: any): LandingObj | null => {
     locked: isBoolean(value.locked) ? value.locked : false,
     measurements: normaliseMeasurements(value.measurements, value.elevationMm ?? 0),
     measurementAnchors: normaliseMeasurementAnchors(value.measurementAnchors),
-    dimensionOffsetsMm: normaliseDimensionOffsets(value.dimensionOffsetsMm),
   };
 };
 
@@ -189,18 +178,8 @@ const cloneMeasurementAnchors = (value: MeasurementAnchors): MeasurementAnchors 
 
 const cloneObject = (obj: Object2D): Object2D =>
   obj.kind === "ramp"
-    ? {
-        ...obj,
-        measurements: cloneMeasurements(obj.measurements),
-        measurementAnchors: cloneMeasurementAnchors(obj.measurementAnchors),
-        dimensionOffsetsMm: { ...obj.dimensionOffsetsMm },
-      }
-    : {
-        ...obj,
-        measurements: cloneMeasurements(obj.measurements),
-        measurementAnchors: cloneMeasurementAnchors(obj.measurementAnchors),
-        dimensionOffsetsMm: { ...obj.dimensionOffsetsMm },
-      };
+    ? { ...obj, measurements: cloneMeasurements(obj.measurements), measurementAnchors: cloneMeasurementAnchors(obj.measurementAnchors) }
+    : { ...obj, measurements: cloneMeasurements(obj.measurements), measurementAnchors: cloneMeasurementAnchors(obj.measurementAnchors) };
 
 const isPersistedEnvelope = (value: any): value is PersistedEnvelope =>
   value &&

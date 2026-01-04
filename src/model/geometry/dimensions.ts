@@ -1,11 +1,10 @@
-import { DEFAULT_DIMENSION_OFFSET_MM, DEFAULT_MEASUREMENT_OFFSET_MM } from "../defaults";
+import { DEFAULT_MEASUREMENT_OFFSET_MM } from "../defaults";
 import { MeasurementAnchor, MeasurementKey, Object2D, RampObj } from "../types";
 import { getObjectBoundingBoxMm, topLeftFromCenterMm, type PointMm } from "../geometry";
 
 export type DimensionSegmentVariant = "length" | "width" | "wing" | "height" | "elevation";
 
-export type PlanDimensionSegment = {
-  kind: "plan";
+export type DimensionSegment = {
   measurementKey: MeasurementKey;
   objectId: string;
   startMm: PointMm;
@@ -14,32 +13,11 @@ export type PlanDimensionSegment = {
   label: string;
   variant: DimensionSegmentVariant;
   tickLengthMm: number;
-  outwardNormal: { xMm: number; yMm: number };
-  offsetMm: number;
 };
 
-export type LeaderDimensionSegment = {
-  kind: "leader";
-  measurementKey: MeasurementKey;
-  objectId: string;
-  pointsMm: PointMm[];
-  textAnchorMm: PointMm;
-  label: string;
-  variant: "height" | "elevation";
-};
-
-export type DimensionSegment = PlanDimensionSegment | LeaderDimensionSegment;
-
-export const DIMENSION_STROKE_WIDTH_MM = 10;
-export const DIMENSION_TICK_LENGTH_MM = 60;
-export const DIMENSION_TEXT_SIZE_MM = 120;
-export const DIMENSION_TEXT_GAP_MM = 60;
-export const DIMENSION_HIT_STROKE_MM = 40;
-export const DEFAULT_DIMENSION_OFFSET = DEFAULT_DIMENSION_OFFSET_MM;
-
-const HEIGHT_LEADER_LENGTH_MM = 200;
-const HEIGHT_TAIL_LENGTH_MM = 250;
-const LEADER_STACK_GAP_MM = 120;
+export const DIMENSION_TICK_LENGTH_MM = 80;
+export const DIMENSION_BRACKET_HEIGHT_MM = 160;
+export const DIMENSION_BRACKET_SPACING_MM = 60;
 
 const defaultAnchor: MeasurementAnchor = { offsetMm: DEFAULT_MEASUREMENT_OFFSET_MM, orientation: "auto" };
 
@@ -57,13 +35,6 @@ const isLengthVertical = (rotationDeg: number) => {
 
 const getAnchor = (obj: Object2D, key: MeasurementKey): MeasurementAnchor => obj.measurementAnchors?.[key] ?? defaultAnchor;
 
-const getOffsetMm = (obj: Object2D, key: MeasurementKey): number => {
-  const dimensionOffset = obj.dimensionOffsetsMm?.[key];
-  const anchorOffset = obj.measurementAnchors?.[key]?.offsetMm ?? DEFAULT_MEASUREMENT_OFFSET_MM;
-  const chosen = typeof dimensionOffset === "number" ? dimensionOffset : anchorOffset;
-  return Math.max(DEFAULT_DIMENSION_OFFSET_MM, chosen);
-};
-
 const rotatePointMm = (point: { xMm: number; yMm: number }, rotationDeg: number) => {
   const rad = (rotationDeg * Math.PI) / 180;
   const cos = Math.cos(rad);
@@ -74,13 +45,7 @@ const rotatePointMm = (point: { xMm: number; yMm: number }, rotationDeg: number)
   };
 };
 
-const normaliseVector = (vec: { xMm: number; yMm: number }): { xMm: number; yMm: number } => {
-  const mag = Math.hypot(vec.xMm, vec.yMm);
-  if (mag === 0) return { xMm: 0, yMm: 0 };
-  return { xMm: vec.xMm / mag, yMm: vec.yMm / mag };
-};
-
-const buildWingDimensionSegment = (obj: RampObj, side: "left" | "right"): PlanDimensionSegment | null => {
+const buildWingDimensionSegment = (obj: RampObj, side: "left" | "right"): DimensionSegment | null => {
   const hasWing = side === "left" ? obj.hasLeftWing : obj.hasRightWing;
   const wingSize = side === "left" ? obj.leftWingSizeMm : obj.rightWingSizeMm;
   const measurementKey: MeasurementKey = side === "left" ? "WL" : "WR";
@@ -92,7 +57,6 @@ const buildWingDimensionSegment = (obj: RampObj, side: "left" | "right"): PlanDi
   const verticalLength = isLengthVertical(obj.rotationDeg);
   const orientation: "horizontal" | "vertical" = verticalLength ? "horizontal" : "vertical";
   const anchor = getAnchor(obj, measurementKey);
-  const offsetMm = getOffsetMm(obj, measurementKey);
 
   const halfRun = obj.runMm / 2;
   const halfWidth = obj.widthMm / 2;
@@ -106,8 +70,8 @@ const buildWingDimensionSegment = (obj: RampObj, side: "left" | "right"): PlanDi
 
   const lengthDirection = rotatePointMm({ xMm: 1, yMm: 0 }, obj.rotationDeg);
   const offset = {
-    xMm: lengthDirection.xMm * offsetMm,
-    yMm: lengthDirection.yMm * offsetMm,
+    xMm: lengthDirection.xMm * anchor.offsetMm,
+    yMm: lengthDirection.yMm * anchor.offsetMm,
   };
 
   const baseWorld = { xMm: obj.xMm + baseRotated.xMm + offset.xMm, yMm: obj.yMm + baseRotated.yMm + offset.yMm };
@@ -118,7 +82,6 @@ const buildWingDimensionSegment = (obj: RampObj, side: "left" | "right"): PlanDi
     orientation === "horizontal" ? { xMm: tipWorld.xMm, yMm: baseWorld.yMm } : { xMm: baseWorld.xMm, yMm: tipWorld.yMm };
 
   return {
-    kind: "plan",
     measurementKey,
     objectId: obj.id,
     startMm,
@@ -127,12 +90,10 @@ const buildWingDimensionSegment = (obj: RampObj, side: "left" | "right"): PlanDi
     label: formatMm(wingSize),
     variant: "wing",
     tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-    outwardNormal: normaliseVector(lengthDirection),
-    offsetMm,
   };
 };
 
-const buildEdgeDimensionSegments = (obj: Object2D): PlanDimensionSegment[] => {
+const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
   const bbox = getObjectBoundingBoxMm(obj);
   const topLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, bbox);
   const left = topLeft.xMm;
@@ -141,170 +102,122 @@ const buildEdgeDimensionSegments = (obj: Object2D): PlanDimensionSegment[] => {
   const bottom = top + bbox.heightMm;
 
   const verticalLength = isLengthVertical(obj.rotationDeg);
-  const segments: PlanDimensionSegment[] = [];
+  const segments: DimensionSegment[] = [];
 
   if (obj.measurements.L1) {
     const anchor = getAnchor(obj, "L1");
-    const offset = getOffsetMm(obj, "L1");
     const orientation = anchor.orientation === "auto" ? (verticalLength ? "vertical" : "horizontal") : anchor.orientation;
-    if (orientation === "vertical") {
-      const baseStart = { xMm: left, yMm: top };
-      const baseEnd = { xMm: left, yMm: bottom };
-      const offsetVec = { xMm: -offset, yMm: 0 };
-      segments.push({
-        kind: "plan",
-        measurementKey: "L1",
-        objectId: obj.id,
-        startMm: { xMm: baseStart.xMm + offsetVec.xMm, yMm: baseStart.yMm + offsetVec.yMm },
-        endMm: { xMm: baseEnd.xMm + offsetVec.xMm, yMm: baseEnd.yMm + offsetVec.yMm },
-        orientation: "vertical",
-        label: formatMm(bottom - top),
-        variant: "length",
-        tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-        outwardNormal: normaliseVector(offsetVec),
-        offsetMm: offset,
-      });
-    } else {
-      const baseStart = { xMm: left, yMm: top };
-      const baseEnd = { xMm: right, yMm: top };
-      const offsetVec = { xMm: 0, yMm: -offset };
-      segments.push({
-        kind: "plan",
-        measurementKey: "L1",
-        objectId: obj.id,
-        startMm: { xMm: baseStart.xMm + offsetVec.xMm, yMm: baseStart.yMm + offsetVec.yMm },
-        endMm: { xMm: baseEnd.xMm + offsetVec.xMm, yMm: baseEnd.yMm + offsetVec.yMm },
-        orientation: "horizontal",
-        label: formatMm(right - left),
-        variant: "length",
-        tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-        outwardNormal: normaliseVector(offsetVec),
-        offsetMm: offset,
-      });
-    }
+    const offset = anchor.offsetMm;
+    segments.push(
+      orientation === "vertical"
+        ? {
+            measurementKey: "L1",
+            objectId: obj.id,
+            startMm: { xMm: left - offset, yMm: top },
+            endMm: { xMm: left - offset, yMm: bottom },
+            orientation: "vertical",
+            label: formatMm(bottom - top),
+            variant: "length",
+            tickLengthMm: DIMENSION_TICK_LENGTH_MM,
+          }
+        : {
+            measurementKey: "L1",
+            objectId: obj.id,
+            startMm: { xMm: left, yMm: top - offset },
+            endMm: { xMm: right, yMm: top - offset },
+            orientation: "horizontal",
+            label: formatMm(right - left),
+            variant: "length",
+            tickLengthMm: DIMENSION_TICK_LENGTH_MM,
+          },
+    );
   }
 
   if (obj.measurements.L2) {
     const anchor = getAnchor(obj, "L2");
-    const offset = getOffsetMm(obj, "L2");
     const orientation = anchor.orientation === "auto" ? (verticalLength ? "vertical" : "horizontal") : anchor.orientation;
-    if (orientation === "vertical") {
-      const baseStart = { xMm: right, yMm: top };
-      const baseEnd = { xMm: right, yMm: bottom };
-      const offsetVec = { xMm: offset, yMm: 0 };
-      segments.push({
-        kind: "plan",
-        measurementKey: "L2",
-        objectId: obj.id,
-        startMm: { xMm: baseStart.xMm + offsetVec.xMm, yMm: baseStart.yMm + offsetVec.yMm },
-        endMm: { xMm: baseEnd.xMm + offsetVec.xMm, yMm: baseEnd.yMm + offsetVec.yMm },
-        orientation: "vertical",
-        label: formatMm(bottom - top),
-        variant: "length",
-        tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-        outwardNormal: normaliseVector(offsetVec),
-        offsetMm: offset,
-      });
-    } else {
-      const baseStart = { xMm: left, yMm: bottom };
-      const baseEnd = { xMm: right, yMm: bottom };
-      const offsetVec = { xMm: 0, yMm: offset };
-      segments.push({
-        kind: "plan",
-        measurementKey: "L2",
-        objectId: obj.id,
-        startMm: { xMm: baseStart.xMm + offsetVec.xMm, yMm: baseStart.yMm + offsetVec.yMm },
-        endMm: { xMm: baseEnd.xMm + offsetVec.xMm, yMm: baseEnd.yMm + offsetVec.yMm },
-        orientation: "horizontal",
-        label: formatMm(right - left),
-        variant: "length",
-        tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-        outwardNormal: normaliseVector(offsetVec),
-        offsetMm: offset,
-      });
-    }
+    const offset = anchor.offsetMm;
+    segments.push(
+      orientation === "vertical"
+        ? {
+            measurementKey: "L2",
+            objectId: obj.id,
+            startMm: { xMm: right + offset, yMm: top },
+            endMm: { xMm: right + offset, yMm: bottom },
+            orientation: "vertical",
+            label: formatMm(bottom - top),
+            variant: "length",
+            tickLengthMm: DIMENSION_TICK_LENGTH_MM,
+          }
+        : {
+            measurementKey: "L2",
+            objectId: obj.id,
+            startMm: { xMm: left, yMm: bottom + offset },
+            endMm: { xMm: right, yMm: bottom + offset },
+            orientation: "horizontal",
+            label: formatMm(right - left),
+            variant: "length",
+            tickLengthMm: DIMENSION_TICK_LENGTH_MM,
+          },
+    );
   }
 
   if (obj.measurements.W1) {
     const anchor = getAnchor(obj, "W1");
-    const offset = getOffsetMm(obj, "W1");
     const orientation = anchor.orientation === "auto" ? (verticalLength ? "horizontal" : "vertical") : anchor.orientation;
-    if (orientation === "horizontal") {
-      const baseStart = { xMm: left, yMm: top };
-      const baseEnd = { xMm: right, yMm: top };
-      const offsetVec = { xMm: 0, yMm: -offset };
-      segments.push({
-        kind: "plan",
-        measurementKey: "W1",
-        objectId: obj.id,
-        startMm: { xMm: baseStart.xMm + offsetVec.xMm, yMm: baseStart.yMm + offsetVec.yMm },
-        endMm: { xMm: baseEnd.xMm + offsetVec.xMm, yMm: baseEnd.yMm + offsetVec.yMm },
-        orientation: "horizontal",
-        label: formatMm(right - left),
-        variant: "width",
-        tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-        outwardNormal: normaliseVector(offsetVec),
-        offsetMm: offset,
-      });
-    } else {
-      const baseStart = { xMm: left, yMm: top };
-      const baseEnd = { xMm: left, yMm: bottom };
-      const offsetVec = { xMm: -offset, yMm: 0 };
-      segments.push({
-        kind: "plan",
-        measurementKey: "W1",
-        objectId: obj.id,
-        startMm: { xMm: baseStart.xMm + offsetVec.xMm, yMm: baseStart.yMm + offsetVec.yMm },
-        endMm: { xMm: baseEnd.xMm + offsetVec.xMm, yMm: baseEnd.yMm + offsetVec.yMm },
-        orientation: "vertical",
-        label: formatMm(bottom - top),
-        variant: "width",
-        tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-        outwardNormal: normaliseVector(offsetVec),
-        offsetMm: offset,
-      });
-    }
+    const offset = anchor.offsetMm;
+    segments.push(
+      orientation === "horizontal"
+        ? {
+            measurementKey: "W1",
+            objectId: obj.id,
+            startMm: { xMm: left, yMm: top - offset },
+            endMm: { xMm: right, yMm: top - offset },
+            orientation: "horizontal",
+            label: formatMm(right - left),
+            variant: "width",
+            tickLengthMm: DIMENSION_TICK_LENGTH_MM,
+          }
+        : {
+            measurementKey: "W1",
+            objectId: obj.id,
+            startMm: { xMm: left - offset, yMm: top },
+            endMm: { xMm: left - offset, yMm: bottom },
+            orientation: "vertical",
+            label: formatMm(bottom - top),
+            variant: "width",
+            tickLengthMm: DIMENSION_TICK_LENGTH_MM,
+          },
+    );
   }
 
   if (obj.measurements.W2) {
     const anchor = getAnchor(obj, "W2");
-    const offset = getOffsetMm(obj, "W2");
     const orientation = anchor.orientation === "auto" ? (verticalLength ? "horizontal" : "vertical") : anchor.orientation;
-    if (orientation === "horizontal") {
-      const baseStart = { xMm: left, yMm: bottom };
-      const baseEnd = { xMm: right, yMm: bottom };
-      const offsetVec = { xMm: 0, yMm: offset };
-      segments.push({
-        kind: "plan",
-        measurementKey: "W2",
-        objectId: obj.id,
-        startMm: { xMm: baseStart.xMm + offsetVec.xMm, yMm: baseStart.yMm + offsetVec.yMm },
-        endMm: { xMm: baseEnd.xMm + offsetVec.xMm, yMm: baseEnd.yMm + offsetVec.yMm },
-        orientation: "horizontal",
-        label: formatMm(right - left),
-        variant: "width",
-        tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-        outwardNormal: normaliseVector(offsetVec),
-        offsetMm: offset,
-      });
-    } else {
-      const baseStart = { xMm: right, yMm: top };
-      const baseEnd = { xMm: right, yMm: bottom };
-      const offsetVec = { xMm: offset, yMm: 0 };
-      segments.push({
-        kind: "plan",
-        measurementKey: "W2",
-        objectId: obj.id,
-        startMm: { xMm: baseStart.xMm + offsetVec.xMm, yMm: baseStart.yMm + offsetVec.yMm },
-        endMm: { xMm: baseEnd.xMm + offsetVec.xMm, yMm: baseEnd.yMm + offsetVec.yMm },
-        orientation: "vertical",
-        label: formatMm(bottom - top),
-        variant: "width",
-        tickLengthMm: DIMENSION_TICK_LENGTH_MM,
-        outwardNormal: normaliseVector(offsetVec),
-        offsetMm: offset,
-      });
-    }
+    const offset = anchor.offsetMm;
+    segments.push(
+      orientation === "horizontal"
+        ? {
+            measurementKey: "W2",
+            objectId: obj.id,
+            startMm: { xMm: left, yMm: bottom + offset },
+            endMm: { xMm: right, yMm: bottom + offset },
+            orientation: "horizontal",
+            label: formatMm(right - left),
+            variant: "width",
+            tickLengthMm: DIMENSION_TICK_LENGTH_MM,
+          }
+        : {
+            measurementKey: "W2",
+            objectId: obj.id,
+            startMm: { xMm: right + offset, yMm: top },
+            endMm: { xMm: right + offset, yMm: bottom },
+            orientation: "vertical",
+            label: formatMm(bottom - top),
+            variant: "width",
+            tickLengthMm: DIMENSION_TICK_LENGTH_MM,
+          },
+    );
   }
 
   if (obj.kind === "ramp") {
@@ -317,70 +230,56 @@ const buildEdgeDimensionSegments = (obj: Object2D): PlanDimensionSegment[] => {
   return segments;
 };
 
-const buildHeightLeaderSegments = (obj: Object2D): LeaderDimensionSegment[] => {
+const buildBracketSegments = (obj: Object2D): DimensionSegment[] => {
+  const bbox = getObjectBoundingBoxMm(obj);
+  const topLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, bbox);
+  const left = topLeft.xMm;
+  const top = topLeft.yMm;
+
+  const brackets: DimensionSegment[] = [];
   const shouldShowHeight = obj.measurements.H;
   const shouldShowElevation = obj.measurements.E && obj.elevationMm > 0;
 
   if (!shouldShowHeight && !shouldShowElevation) {
-    return [];
+    return brackets;
   }
 
-  const length = obj.kind === "ramp" ? obj.runMm : obj.lengthMm;
-  const width = obj.widthMm;
-
-  const localAnchor = { xMm: length / 2, yMm: -width / 2 };
-  const leaderDirLocal = normaliseVector({ xMm: 1, yMm: -1 });
-
-  const leaderEndLocal = {
-    xMm: localAnchor.xMm + leaderDirLocal.xMm * HEIGHT_LEADER_LENGTH_MM,
-    yMm: localAnchor.yMm + leaderDirLocal.yMm * HEIGHT_LEADER_LENGTH_MM,
-  };
-  const tailEndLocal = { xMm: leaderEndLocal.xMm + HEIGHT_TAIL_LENGTH_MM, yMm: leaderEndLocal.yMm };
-
-  const toWorld = (pt: PointMm): PointMm => {
-    const rotated = rotatePointMm(pt, obj.rotationDeg);
-    return { xMm: obj.xMm + rotated.xMm, yMm: obj.yMm + rotated.yMm };
-  };
-
-  const anchorWorld = toWorld(localAnchor);
-  const leaderEndWorld = toWorld(leaderEndLocal);
-  const tailEndWorld = toWorld(tailEndLocal);
-
-  const segments: LeaderDimensionSegment[] = [];
-
-  const basePoints = [anchorWorld, leaderEndWorld, tailEndWorld];
-
   if (shouldShowHeight) {
-    segments.push({
-      kind: "leader",
+    const anchor = getAnchor(obj, "H");
+    const offset = anchor.offsetMm / 2;
+    brackets.push({
       measurementKey: "H",
       objectId: obj.id,
-      pointsMm: basePoints,
-      textAnchorMm: tailEndWorld,
-      label: formatMm(obj.heightMm),
+      startMm: { xMm: left - offset, yMm: top },
+      endMm: { xMm: left - offset, yMm: top - DIMENSION_BRACKET_HEIGHT_MM },
+      orientation: "vertical",
+      label: `H ${formatMm(obj.heightMm)}`,
       variant: "height",
+      tickLengthMm: DIMENSION_TICK_LENGTH_MM,
     });
   }
 
   if (shouldShowElevation) {
-    const stackedTextAnchor = toWorld({ xMm: tailEndLocal.xMm, yMm: tailEndLocal.yMm - LEADER_STACK_GAP_MM });
-    segments.push({
-      kind: "leader",
+    const anchor = getAnchor(obj, "E");
+    const offset = anchor.offsetMm / 2 + DIMENSION_BRACKET_SPACING_MM;
+    brackets.push({
       measurementKey: "E",
       objectId: obj.id,
-      pointsMm: basePoints,
-      textAnchorMm: stackedTextAnchor,
-      label: formatMm(obj.elevationMm),
+      startMm: { xMm: left - offset, yMm: top },
+      endMm: { xMm: left - offset, yMm: top - DIMENSION_BRACKET_HEIGHT_MM },
+      orientation: "vertical",
+      label: `E ${formatMm(obj.elevationMm)}`,
       variant: "elevation",
+      tickLengthMm: DIMENSION_TICK_LENGTH_MM,
     });
   }
 
-  return segments;
+  return brackets;
 };
 
 export const generateDimensionsForObject = (obj: Object2D): DimensionSegment[] => [
   ...buildEdgeDimensionSegments(obj),
-  ...buildHeightLeaderSegments(obj),
+  ...buildBracketSegments(obj),
 ];
 
 export const generateDimensions = (objects: Object2D[]): DimensionSegment[] => objects.flatMap(generateDimensionsForObject);
