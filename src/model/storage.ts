@@ -2,11 +2,21 @@ import {
   DEFAULT_LANDING_HEIGHT_MM,
   DEFAULT_LANDING_LENGTH_MM,
   DEFAULT_LANDING_WIDTH_MM,
+  DEFAULT_MEASUREMENT_OFFSET_MM,
   DEFAULT_RAMP_HEIGHT_MM,
   DEFAULT_RAMP_RUN_MM,
   DEFAULT_RAMP_WIDTH_MM,
 } from "./defaults";
-import { LandingObj, MeasurementKey, MeasurementState, Object2D, RampObj, Tool } from "./types";
+import {
+  LandingObj,
+  MEASUREMENT_KEYS,
+  MeasurementAnchors,
+  MeasurementKey,
+  MeasurementState,
+  Object2D,
+  RampObj,
+  Tool,
+} from "./types";
 
 export const STORAGE_KEY = "occupational_builder_v1";
 
@@ -18,6 +28,7 @@ export type PersistedProject = {
   snapOn: boolean;
   objects: Object2D[];
   selectedId: string | null;
+  selectedMeasurementKey: MeasurementKey | null;
 };
 
 type PersistedEnvelope = {
@@ -36,8 +47,6 @@ const isTool = (value: unknown): value is Tool =>
   value === "none" || value === "ramp" || value === "landing" || value === "delete";
 
 const isLegacyTool = (value: unknown): value is "platform" => value === "platform";
-
-const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "H", "E"];
 
 const normaliseMeasurements = (value: any, elevationMm: number): MeasurementState => {
   const fallback = (defaultValue: boolean): boolean => (typeof defaultValue === "boolean" ? defaultValue : true);
@@ -62,7 +71,7 @@ const normaliseMeasurements = (value: any, elevationMm: number): MeasurementStat
 
   const keyedOverrides =
     value && typeof value === "object"
-      ? measurementKeys.reduce<Partial<MeasurementState>>((acc, key) => {
+      ? MEASUREMENT_KEYS.reduce<Partial<MeasurementState>>((acc, key) => {
           const candidate = value[key];
           if (typeof candidate === "boolean") {
             acc[key] = candidate;
@@ -72,6 +81,22 @@ const normaliseMeasurements = (value: any, elevationMm: number): MeasurementStat
       : {};
 
   return { ...base, ...keyedOverrides };
+};
+
+const normaliseMeasurementAnchors = (value: any): MeasurementAnchors => {
+  const isOrientation = (candidate: any): candidate is MeasurementAnchors[keyof MeasurementAnchors]["orientation"] =>
+    candidate === "horizontal" || candidate === "vertical" || candidate === "auto";
+
+  return MEASUREMENT_KEYS.reduce<MeasurementAnchors>(
+    (acc, key) => {
+      const raw = value?.[key];
+      const offsetMm = isNumber(raw?.offsetMm) ? raw.offsetMm : DEFAULT_MEASUREMENT_OFFSET_MM;
+      const orientation = isOrientation(raw?.orientation) ? raw.orientation : "auto";
+      acc[key] = { offsetMm, orientation };
+      return acc;
+    },
+    {} as MeasurementAnchors,
+  );
 };
 
 const toRamp = (value: any): RampObj | null => {
@@ -93,6 +118,7 @@ const toRamp = (value: any): RampObj | null => {
     rotationDeg: isNumber(value.rotationDeg) ? value.rotationDeg : 0,
     locked: isBoolean(value.locked) ? value.locked : false,
     measurements: normaliseMeasurements(value.measurements, value.elevationMm ?? 0),
+    measurementAnchors: normaliseMeasurementAnchors(value.measurementAnchors),
     runMm: isNumber(value.runMm) ? value.runMm : lengthMm,
     showArrow: isBoolean(value.showArrow) ? value.showArrow : true,
     hasLeftWing: isBoolean(value.hasLeftWing) ? value.hasLeftWing : false,
@@ -132,6 +158,7 @@ const toLanding = (value: any): LandingObj | null => {
     rotationDeg: isNumber(value.rotationDeg) ? value.rotationDeg : 0,
     locked: isBoolean(value.locked) ? value.locked : false,
     measurements: normaliseMeasurements(value.measurements, value.elevationMm ?? 0),
+    measurementAnchors: normaliseMeasurementAnchors(value.measurementAnchors),
   };
 };
 
@@ -142,12 +169,15 @@ const toObject2D = (value: any): Object2D | null => {
 };
 
 const cloneMeasurements = (value: MeasurementState): MeasurementState =>
-  measurementKeys.reduce<MeasurementState>((acc, key) => ({ ...acc, [key]: value[key] }), {} as MeasurementState);
+  MEASUREMENT_KEYS.reduce<MeasurementState>((acc, key) => ({ ...acc, [key]: value[key] }), {} as MeasurementState);
+
+const cloneMeasurementAnchors = (value: MeasurementAnchors): MeasurementAnchors =>
+  MEASUREMENT_KEYS.reduce<MeasurementAnchors>((acc, key) => ({ ...acc, [key]: { ...value[key] } }), {} as MeasurementAnchors);
 
 const cloneObject = (obj: Object2D): Object2D =>
   obj.kind === "ramp"
-    ? { ...obj, measurements: cloneMeasurements(obj.measurements) }
-    : { ...obj, measurements: cloneMeasurements(obj.measurements) };
+    ? { ...obj, measurements: cloneMeasurements(obj.measurements), measurementAnchors: cloneMeasurementAnchors(obj.measurementAnchors) }
+    : { ...obj, measurements: cloneMeasurements(obj.measurements), measurementAnchors: cloneMeasurementAnchors(obj.measurementAnchors) };
 
 const isPersistedEnvelope = (value: any): value is PersistedEnvelope =>
   value &&
@@ -174,6 +204,10 @@ const normaliseProject = (value: any): PersistedProject | null => {
     .map((obj) => cloneObject(obj));
 
   const selectedId = value.selectedId === null || isString(value.selectedId) ? value.selectedId ?? null : null;
+  const selectedMeasurementKey =
+    value.selectedMeasurementKey === null || MEASUREMENT_KEYS.includes(value.selectedMeasurementKey)
+      ? value.selectedMeasurementKey ?? null
+      : null;
 
   return {
     mode: value.mode,
@@ -181,6 +215,7 @@ const normaliseProject = (value: any): PersistedProject | null => {
     snapOn: value.snapOn,
     objects,
     selectedId,
+    selectedMeasurementKey,
   };
 };
 

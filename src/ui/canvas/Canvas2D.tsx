@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
-import { BaseObj, LandingObj, Object2D, RampObj, Tool } from "../../model/types";
+import { BaseObj, LandingObj, MeasurementKey, Object2D, RampObj, Tool } from "../../model/types";
 import { newLandingAt, newRampAt } from "../../model/defaults";
 import { centerFromTopLeftMm, getDefaultBoundingBoxMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
 import { mmToPx, pxToMm, snapMm } from "../../model/units";
@@ -19,7 +19,9 @@ type Canvas2DProps = {
   snapOn: boolean;
   objects: Object2D[];
   selectedId: string | null;
+  selectedMeasurementKey: MeasurementKey | null;
   onSelect: (id: string) => void;
+  onSelectMeasurement: (id: string, key: MeasurementKey) => void;
   onClearSelection: () => void;
   onPlaceAt: (tool: Tool, xMm: number, yMm: number) => void;
   onUpdateObject: (id: string, patch: Partial<Object2D> | Partial<BaseObj>, commit?: boolean) => void;
@@ -173,7 +175,9 @@ export default function Canvas2D({
   snapOn,
   objects,
   selectedId,
+  selectedMeasurementKey,
   onSelect,
+  onSelectMeasurement,
   onClearSelection,
   onPlaceAt,
   onUpdateObject,
@@ -678,7 +682,14 @@ export default function Canvas2D({
 
             <Layer>
               <Group {...worldGroupProps} {...workspaceClip}>
-                <Dimensions2D objects={objects} cameraScale={camera.scale} selectedId={selectedId} onSelect={onSelect} />
+                <Dimensions2D
+                  objects={objects}
+                  cameraScale={camera.scale}
+                  selectedId={selectedId}
+                  selectedMeasurementKey={selectedMeasurementKey}
+                  onSelect={onSelect}
+                  onSelectMeasurement={onSelectMeasurement}
+                />
               </Group>
             </Layer>
 

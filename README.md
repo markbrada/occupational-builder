@@ -170,6 +170,9 @@ Parameters:
 
 ## Changelog
 
+### v0.5.1
+- Added per-dimension anchor metadata with default 200mm offsets, seeded into new/legacy saves, and wired dimension clicks to select anchors for future drag-based adjustments.
+
 ### v0.5.0
 - Added a Canvas2D dimension overlay that uses measurement toggles to draw selection-aware horizontal/vertical ticks with millimetre labels and compact height/elevation brackets offset from each face.
 

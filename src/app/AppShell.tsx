@@ -28,6 +28,7 @@ const defaultSnapshot: Snapshot = {
   snapOn: true,
   objects: [],
   selectedId: null,
+  selectedMeasurementKey: null,
 };
 
 export default function AppShell() {
@@ -35,7 +36,7 @@ export default function AppShell() {
   const [activeTool, setActiveTool] = useState<Tool>("none");
   const [history, setHistory] = useState<HistoryState>(() => createHistoryState(defaultSnapshot));
 
-  const { objects, selectedId, snapOn } = history.present;
+  const { objects, selectedId, selectedMeasurementKey, snapOn } = history.present;
 
   const saveTimerRef = useRef<number | null>(null);
 
@@ -49,6 +50,7 @@ export default function AppShell() {
           objects: restored.objects,
           snapOn: restored.snapOn,
           selectedId: restored.selectedId,
+          selectedMeasurementKey: restored.selectedMeasurementKey,
         }),
       );
     }
@@ -68,7 +70,7 @@ export default function AppShell() {
       window.clearTimeout(saveTimerRef.current);
     }
 
-    const snapshot = { mode, activeTool, objects, snapOn, selectedId };
+    const snapshot = { mode, activeTool, objects, snapOn, selectedId, selectedMeasurementKey };
 
     saveTimerRef.current = window.setTimeout(() => {
       saveProject(snapshot);
@@ -105,7 +107,17 @@ export default function AppShell() {
 
   const handleSelect = useCallback(
     (id: string) => {
-      applySnapshot((present) => (present.selectedId === id ? present : { ...present, selectedId: id }));
+      applySnapshot((present) => (present.selectedId === id ? present : { ...present, selectedId: id, selectedMeasurementKey: null }));
+    },
+    [applySnapshot],
+  );
+
+  const handleSelectMeasurement = useCallback(
+    (id: string, key: Snapshot["selectedMeasurementKey"]) => {
+      applySnapshot((present) => {
+        if (present.selectedId === id && present.selectedMeasurementKey === key) return present;
+        return { ...present, selectedId: id, selectedMeasurementKey: key };
+      });
     },
     [applySnapshot],
   );
@@ -117,7 +129,7 @@ export default function AppShell() {
       if (tool === "ramp") {
         const ramp = newRampAt(xMm, yMm);
         applySnapshot(
-          (present) => ({ ...present, objects: [...present.objects, ramp], selectedId: ramp.id }),
+          (present) => ({ ...present, objects: [...present.objects, ramp], selectedId: ramp.id, selectedMeasurementKey: null }),
           true,
         );
         setActiveTool("none");
@@ -126,7 +138,7 @@ export default function AppShell() {
       if (tool === "landing") {
         const landing = newLandingAt(xMm, yMm);
         applySnapshot(
-          (present) => ({ ...present, objects: [...present.objects, landing], selectedId: landing.id }),
+          (present) => ({ ...present, objects: [...present.objects, landing], selectedId: landing.id, selectedMeasurementKey: null }),
           true,
         );
         setActiveTool("none");
@@ -149,7 +161,7 @@ export default function AppShell() {
         const nextObjects = present.objects.filter((obj) => obj.id !== id);
         if (nextObjects.length === present.objects.length) return present;
         const nextSelected = present.selectedId === id ? null : present.selectedId;
-        return { ...present, objects: nextObjects, selectedId: nextSelected };
+        return { ...present, objects: nextObjects, selectedId: nextSelected, selectedMeasurementKey: null };
       }, true);
     },
     [applySnapshot],
@@ -157,8 +169,8 @@ export default function AppShell() {
 
   const handleClearSelection = useCallback(() => {
     applySnapshot((present) => {
-      if (present.selectedId === null) return present;
-      return { ...present, selectedId: null };
+      if (present.selectedId === null && present.selectedMeasurementKey === null) return present;
+      return { ...present, selectedId: null, selectedMeasurementKey: null };
     });
   }, [applySnapshot]);
 
@@ -278,7 +290,9 @@ export default function AppShell() {
               snapOn={snapOn}
               objects={objects}
               selectedId={selectedId}
+              selectedMeasurementKey={selectedMeasurementKey}
               onSelect={handleSelect}
+              onSelectMeasurement={handleSelectMeasurement}
               onClearSelection={handleClearSelection}
               onPlaceAt={handlePlaceAt}
               onUpdateObject={handleUpdateObject}
