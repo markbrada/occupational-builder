@@ -52,21 +52,6 @@ const rotatePoint = (point: PointMm, rotationDeg: number): PointMm => {
   return { xMm: point.xMm * cos - point.yMm * sin, yMm: point.xMm * sin + point.yMm * cos };
 };
 
-export const getRampRunBoundingBoxMm = (obj: RampObj): BoundingBoxMm => {
-  const halfLength = obj.runMm / 2;
-  const halfWidth = obj.widthMm / 2;
-
-  const outline: PointMm[] = [
-    { xMm: -halfLength, yMm: -halfWidth },
-    { xMm: -halfLength, yMm: halfWidth },
-    { xMm: halfLength, yMm: halfWidth },
-    { xMm: halfLength, yMm: -halfWidth },
-  ];
-
-  const rotated = outline.map((point) => rotatePoint(point, obj.rotationDeg));
-  return boundingBoxFromPoints(rotated);
-};
-
 const boundingBoxFromPoints = (points: PointMm[]): BoundingBoxMm => {
   const xs = points.map((p) => p.xMm);
   const ys = points.map((p) => p.yMm);

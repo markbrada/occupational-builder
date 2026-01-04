@@ -1,6 +1,6 @@
 # Occupational Builder
 
-**Build version:** v0.5.6  
+**Build version:** v0.4.5  
 **Status:** Active development (v1 scope)
 
 Occupational Builder is a **design-only, browser-based ramp and platform builder** for occupational access scenarios.  
@@ -169,10 +169,6 @@ Parameters:
 ---
 
 ## Changelog
-
-### v0.5.6
-- Kept ramp L1/L2 dimensions aligned to the run extents when wings are present, with wing spans still measured separately.
-- Added a ramp-with-wing preview fixture showing a 1000mm run beside a 500mm wing for quick regression checks.
 
 ### v0.5.5
 - Swapped height brackets for corner leader callouts driven by measurement anchors, added leader-aware 2D rendering with black labels, and enabled snapping, outward-only draggable measurement offsets persisted with undo/redo.
