@@ -170,6 +170,9 @@ Parameters:
 
 ## Changelog
 
+### v0.4.3
+- Added ramp Inspector arrow toggle plus greyed-out Gradient and Ratio readouts derived from Length and Height.
+
 ### v0.4.2
 - Rebuilt ramp wings as triangular extensions aligned to the arrow direction with single-pass stroking, attachment seams, and updated bounds/hit-testing.
 
