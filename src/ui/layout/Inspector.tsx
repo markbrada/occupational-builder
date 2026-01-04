@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import type { ObjectPatch } from "../../model/objectUpdate";
 import type { MeasurementKey, Object2D, RampObj } from "../../model/types";
+import { computeRampSlope } from "../../model/rampSlope";
 
 type InspectorProps = {
   selected: Object2D | null;
@@ -120,6 +121,11 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
     onUpdateObject(selected.id, { measurements: { [key]: nextValue } } as ObjectPatch, true);
   };
 
+  const handleToggleArrow = () => {
+    if (!selected || selected.kind !== "ramp" || selected.locked) return;
+    onUpdateObject(selected.id, { showArrow: !selected.showArrow }, true);
+  };
+
   const handleWingToggle = (key: "hasLeftWing" | "hasRightWing") => () => {
     if (!selected || selected.kind !== "ramp") return;
     const current = selected[key];
@@ -166,6 +172,11 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
     if (!selected) return "";
     return selected.kind === "ramp" ? "Ramp" : "Box / Landing";
   }, [selected]);
+
+  const rampSlope = useMemo(() => {
+    if (!selected || selected.kind !== "ramp") return null;
+    return computeRampSlope(selected.lengthMm, selected.heightMm);
+  }, [selected?.kind, selected?.lengthMm, selected?.heightMm]);
 
   if (!selected) {
     return (
@@ -224,6 +235,33 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
             <span className="inspector__toggleText">{locked ? "on" : "off"}</span>
           </button>
         </label>
+        {selected.kind === "ramp" && rampSlope && (
+          <div className="inspector__section inspector__section--rampMeta">
+            <label className="inspector__field">
+              <span className="inspector__label">Arrow</span>
+              <button
+                type="button"
+                className={`inspector__toggle ${selected.showArrow ? "is-on" : "is-off"}`}
+                onClick={handleToggleArrow}
+                aria-pressed={selected.showArrow}
+                disabled={locked}
+              >
+                <span className="inspector__toggleTrack">
+                  <span className="inspector__toggleThumb" />
+                </span>
+                <span className="inspector__toggleText">{selected.showArrow ? "on" : "off"}</span>
+              </button>
+            </label>
+            <div className="inspector__field">
+              <span className="inspector__label">Gradient</span>
+              <span className="inspector__value inspector__value--disabled">{rampSlope.gradientText}</span>
+            </div>
+            <div className="inspector__field">
+              <span className="inspector__label">Ratio</span>
+              <span className="inspector__value inspector__value--disabled">{rampSlope.ratioText}</span>
+            </div>
+          </div>
+        )}
       </div>
       <div className="inspector__section">
         <div className="inspector__sectionHeader">
