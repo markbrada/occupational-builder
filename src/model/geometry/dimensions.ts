@@ -1,6 +1,6 @@
 import { DEFAULT_MEASUREMENT_OFFSET_MM } from "../defaults";
 import { MeasurementAnchor, MeasurementKey, Object2D, RampObj } from "../types";
-import { getObjectBoundingBoxMm, topLeftFromCenterMm, type PointMm } from "../geometry";
+import { getObjectBoundingBoxMm, getRampRunBoundingBoxMm, topLeftFromCenterMm, type BoundingBoxMm, type PointMm } from "../geometry";
 
 export type DimensionSegmentVariant = "length" | "width" | "wing" | "height" | "elevation";
 
@@ -103,11 +103,19 @@ const buildWingDimensionSegment = (obj: RampObj, side: "left" | "right"): Dimens
 
 const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
   const bbox = getObjectBoundingBoxMm(obj);
-  const topLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, bbox);
-  const left = topLeft.xMm;
-  const right = left + bbox.widthMm;
-  const top = topLeft.yMm;
-  const bottom = top + bbox.heightMm;
+  const runBbox = obj.kind === "ramp" ? getRampRunBoundingBoxMm(obj) : bbox;
+  const toEdges = (box: BoundingBoxMm) => {
+    const topLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, box);
+    return {
+      topLeft,
+      left: topLeft.xMm,
+      right: topLeft.xMm + box.widthMm,
+      top: topLeft.yMm,
+      bottom: topLeft.yMm + box.heightMm,
+    };
+  };
+  const fullEdges = toEdges(bbox);
+  const lengthEdges = obj.kind === "ramp" ? toEdges(runBbox) : fullEdges;
 
   const verticalLength = isLengthVertical(obj.rotationDeg);
   const segments: DimensionSegment[] = [];
@@ -121,20 +129,20 @@ const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
         ? {
             measurementKey: "L1",
             objectId: obj.id,
-            startMm: { xMm: left - offset, yMm: top },
-            endMm: { xMm: left - offset, yMm: bottom },
+            startMm: { xMm: lengthEdges.left - offset, yMm: lengthEdges.top },
+            endMm: { xMm: lengthEdges.left - offset, yMm: lengthEdges.bottom },
             orientation: "vertical",
-            label: formatMm(bottom - top),
+            label: formatMm(lengthEdges.bottom - lengthEdges.top),
             variant: "length",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           }
         : {
             measurementKey: "L1",
             objectId: obj.id,
-            startMm: { xMm: left, yMm: top - offset },
-            endMm: { xMm: right, yMm: top - offset },
+            startMm: { xMm: lengthEdges.left, yMm: lengthEdges.top - offset },
+            endMm: { xMm: lengthEdges.right, yMm: lengthEdges.top - offset },
             orientation: "horizontal",
-            label: formatMm(right - left),
+            label: formatMm(lengthEdges.right - lengthEdges.left),
             variant: "length",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           },
@@ -150,20 +158,20 @@ const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
         ? {
             measurementKey: "L2",
             objectId: obj.id,
-            startMm: { xMm: right + offset, yMm: top },
-            endMm: { xMm: right + offset, yMm: bottom },
+            startMm: { xMm: lengthEdges.right + offset, yMm: lengthEdges.top },
+            endMm: { xMm: lengthEdges.right + offset, yMm: lengthEdges.bottom },
             orientation: "vertical",
-            label: formatMm(bottom - top),
+            label: formatMm(lengthEdges.bottom - lengthEdges.top),
             variant: "length",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           }
         : {
             measurementKey: "L2",
             objectId: obj.id,
-            startMm: { xMm: left, yMm: bottom + offset },
-            endMm: { xMm: right, yMm: bottom + offset },
+            startMm: { xMm: lengthEdges.left, yMm: lengthEdges.bottom + offset },
+            endMm: { xMm: lengthEdges.right, yMm: lengthEdges.bottom + offset },
             orientation: "horizontal",
-            label: formatMm(right - left),
+            label: formatMm(lengthEdges.right - lengthEdges.left),
             variant: "length",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           },
@@ -179,20 +187,20 @@ const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
         ? {
             measurementKey: "W1",
             objectId: obj.id,
-            startMm: { xMm: left, yMm: top - offset },
-            endMm: { xMm: right, yMm: top - offset },
+            startMm: { xMm: fullEdges.left, yMm: fullEdges.top - offset },
+            endMm: { xMm: fullEdges.right, yMm: fullEdges.top - offset },
             orientation: "horizontal",
-            label: formatMm(right - left),
+            label: formatMm(fullEdges.right - fullEdges.left),
             variant: "width",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           }
         : {
             measurementKey: "W1",
             objectId: obj.id,
-            startMm: { xMm: left - offset, yMm: top },
-            endMm: { xMm: left - offset, yMm: bottom },
+            startMm: { xMm: fullEdges.left - offset, yMm: fullEdges.top },
+            endMm: { xMm: fullEdges.left - offset, yMm: fullEdges.bottom },
             orientation: "vertical",
-            label: formatMm(bottom - top),
+            label: formatMm(fullEdges.bottom - fullEdges.top),
             variant: "width",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           },
@@ -208,20 +216,20 @@ const buildEdgeDimensionSegments = (obj: Object2D): DimensionSegment[] => {
         ? {
             measurementKey: "W2",
             objectId: obj.id,
-            startMm: { xMm: left, yMm: bottom + offset },
-            endMm: { xMm: right, yMm: bottom + offset },
+            startMm: { xMm: fullEdges.left, yMm: fullEdges.bottom + offset },
+            endMm: { xMm: fullEdges.right, yMm: fullEdges.bottom + offset },
             orientation: "horizontal",
-            label: formatMm(right - left),
+            label: formatMm(fullEdges.right - fullEdges.left),
             variant: "width",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           }
         : {
             measurementKey: "W2",
             objectId: obj.id,
-            startMm: { xMm: right + offset, yMm: top },
-            endMm: { xMm: right + offset, yMm: bottom },
+            startMm: { xMm: fullEdges.right + offset, yMm: fullEdges.top },
+            endMm: { xMm: fullEdges.right + offset, yMm: fullEdges.bottom },
             orientation: "vertical",
-            label: formatMm(bottom - top),
+            label: formatMm(fullEdges.bottom - fullEdges.top),
             variant: "width",
             tickLengthMm: DIMENSION_TICK_LENGTH_MM,
           },
