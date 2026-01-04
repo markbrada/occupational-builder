@@ -170,6 +170,9 @@ Parameters:
 
 ## Changelog
 
+### v0.5.2
+- Added wing-specific measurement toggles and wing dimension lines that follow wing extensions, enforced vertical-only height/elevation brackets, and kept measurement rendering crisp under zoom with live values from ramp props.
+
 ### v0.5.1
 - Added per-dimension anchor metadata with default 200mm offsets, seeded into new/legacy saves, and wired dimension clicks to select anchors for future drag-based adjustments.
 

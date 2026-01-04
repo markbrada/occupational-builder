@@ -24,6 +24,8 @@ const measurementConfig: { key: MeasurementKey; label: string; description: stri
   { key: "L2", label: "L2", description: "Length (Side 2)" },
   { key: "W1", label: "W1", description: "Width (Side 1)" },
   { key: "W2", label: "W2", description: "Width (Side 2)" },
+  { key: "WL", label: "WL", description: "Left Wing" },
+  { key: "WR", label: "WR", description: "Right Wing" },
   { key: "H", label: "H", description: "Height" },
   { key: "E", label: "E", description: "Elevation" },
 ];
@@ -177,6 +179,7 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
     if (!selected || selected.kind !== "ramp") return null;
     return computeRampSlope(selected.lengthMm, selected.heightMm);
   }, [selected?.kind, selected?.lengthMm, selected?.heightMm]);
+  const isRamp = selected.kind === "ramp";
 
   if (!selected) {
     return (
@@ -268,8 +271,14 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
           <span className="inspector__label">Measurements</span>
         </div>
         <div className="inspector__checkboxGrid">
-          {measurementConfig.map(({ key, label, description }) => {
-            const disabled = locked || (key === "E" && selected.elevationMm === 0);
+          {measurementConfig
+            .filter((entry) => isRamp || (entry.key !== "WL" && entry.key !== "WR"))
+            .map(({ key, label, description }) => {
+              const disabled =
+                locked ||
+                (key === "E" && selected.elevationMm === 0) ||
+                (key === "WL" && (!isRamp || !selected.hasLeftWing)) ||
+                (key === "WR" && (!isRamp || !selected.hasRightWing));
             return (
               <label key={key} className={`inspector__checkboxRow ${disabled ? "is-disabled" : ""}`}>
                 <input

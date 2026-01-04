@@ -1,7 +1,7 @@
 import { Group, Line, Rect, Text } from "react-konva";
 import { getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
 import { DEFAULT_MEASUREMENT_OFFSET_MM } from "../../model/defaults";
-import { MeasurementAnchor, MeasurementKey, Object2D } from "../../model/types";
+import { MeasurementAnchor, MeasurementKey, Object2D, RampObj } from "../../model/types";
 import { mmToPx } from "../../model/units";
 
 type DimensionLineSpec = {
@@ -140,6 +140,66 @@ const defaultAnchor: MeasurementAnchor = { offsetMm: DEFAULT_MEASUREMENT_OFFSET_
 
 const getAnchor = (obj: Object2D, key: MeasurementKey): MeasurementAnchor => obj.measurementAnchors?.[key] ?? defaultAnchor;
 
+const rotatePointMm = (point: { xMm: number; yMm: number }, rotationDeg: number) => {
+  const rad = (rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return {
+    xMm: point.xMm * cos - point.yMm * sin,
+    yMm: point.xMm * sin + point.yMm * cos,
+  };
+};
+
+const buildWingDimensionLine = (obj: RampObj, side: "left" | "right"): DimensionLineSpec | null => {
+  const hasWing = side === "left" ? obj.hasLeftWing : obj.hasRightWing;
+  const wingSize = side === "left" ? obj.leftWingSizeMm : obj.rightWingSizeMm;
+  const measurementKey: MeasurementKey = side === "left" ? "WL" : "WR";
+
+  if (!hasWing || wingSize <= 0 || !obj.measurements[measurementKey]) {
+    return null;
+  }
+
+  const verticalLength = isLengthVertical(obj.rotationDeg);
+  const orientation: "horizontal" | "vertical" = verticalLength ? "horizontal" : "vertical";
+  const anchor = getAnchor(obj, measurementKey);
+
+  const halfRun = obj.runMm / 2;
+  const halfWidth = obj.widthMm / 2;
+  const wingDirection = side === "right" ? 1 : -1;
+
+  const localBase = { xMm: halfRun, yMm: wingDirection * halfWidth };
+  const localTip = { xMm: halfRun, yMm: wingDirection * (halfWidth + wingSize) };
+
+  const baseRotated = rotatePointMm(localBase, obj.rotationDeg);
+  const tipRotated = rotatePointMm(localTip, obj.rotationDeg);
+
+  const lengthDirection = rotatePointMm({ xMm: 1, yMm: 0 }, obj.rotationDeg);
+  const offset = {
+    xMm: lengthDirection.xMm * anchor.offsetMm,
+    yMm: lengthDirection.yMm * anchor.offsetMm,
+  };
+
+  const baseWorld = { xMm: obj.xMm + baseRotated.xMm + offset.xMm, yMm: obj.yMm + baseRotated.yMm + offset.yMm };
+  const tipWorld = { xMm: obj.xMm + tipRotated.xMm + offset.xMm, yMm: obj.yMm + tipRotated.yMm + offset.yMm };
+
+  const startMm =
+    orientation === "horizontal"
+      ? { xMm: baseWorld.xMm, yMm: baseWorld.yMm }
+      : { xMm: baseWorld.xMm, yMm: baseWorld.yMm };
+  const endMm =
+    orientation === "horizontal"
+      ? { xMm: tipWorld.xMm, yMm: baseWorld.yMm }
+      : { xMm: baseWorld.xMm, yMm: tipWorld.yMm };
+
+  return {
+    measurementKey,
+    startMm,
+    endMm,
+    orientation,
+    label: formatMm(wingSize),
+  };
+};
+
 const buildDimensionLines = (obj: Object2D): DimensionLineSpec[] => {
   const bbox = getObjectBoundingBoxMm(obj);
   const topLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, bbox);
@@ -243,6 +303,13 @@ const buildDimensionLines = (obj: Object2D): DimensionLineSpec[] => {
     );
   }
 
+  if (obj.kind === "ramp") {
+    const leftWingLine = buildWingDimensionLine(obj, "left");
+    const rightWingLine = buildWingDimensionLine(obj, "right");
+    if (leftWingLine) lines.push(leftWingLine);
+    if (rightWingLine) lines.push(rightWingLine);
+  }
+
   return lines;
 };
 
@@ -262,47 +329,31 @@ const buildBracketLines = (obj: Object2D): DimensionLineSpec[] => {
 
   if (shouldShowHeight) {
     const anchor = getAnchor(obj, "H");
-    const orientation = anchor.orientation === "auto" ? "vertical" : anchor.orientation;
+    const orientation: "vertical" = "vertical";
     const offset = anchor.offsetMm / 2;
     brackets.push(
-      orientation === "vertical"
-        ? {
-            measurementKey: "H",
-            startMm: { xMm: left - offset, yMm: top },
-            endMm: { xMm: left - offset, yMm: top - BRACKET_HEIGHT_MM },
-            orientation: "vertical",
-            label: `H ${formatMm(obj.heightMm)}`,
-          }
-        : {
-            measurementKey: "H",
-            startMm: { xMm: left, yMm: top - offset },
-            endMm: { xMm: left + BRACKET_HEIGHT_MM, yMm: top - offset },
-            orientation: "horizontal",
-            label: `H ${formatMm(obj.heightMm)}`,
-          },
+      {
+        measurementKey: "H",
+        startMm: { xMm: left - offset, yMm: top },
+        endMm: { xMm: left - offset, yMm: top - BRACKET_HEIGHT_MM },
+        orientation,
+        label: `H ${formatMm(obj.heightMm)}`,
+      },
     );
   }
 
   if (shouldShowElevation) {
     const anchor = getAnchor(obj, "E");
-    const orientation = anchor.orientation === "auto" ? "vertical" : anchor.orientation;
+    const orientation: "vertical" = "vertical";
     const offset = anchor.offsetMm / 2 + BRACKET_SPACING_MM;
     brackets.push(
-      orientation === "vertical"
-        ? {
-            measurementKey: "E",
-            startMm: { xMm: left - offset, yMm: top },
-            endMm: { xMm: left - offset, yMm: top - BRACKET_HEIGHT_MM },
-            orientation: "vertical",
-            label: `E ${formatMm(obj.elevationMm)}`,
-          }
-        : {
-            measurementKey: "E",
-            startMm: { xMm: left, yMm: top - offset },
-            endMm: { xMm: left + BRACKET_HEIGHT_MM, yMm: top - offset },
-            orientation: "horizontal",
-            label: `E ${formatMm(obj.elevationMm)}`,
-          },
+      {
+        measurementKey: "E",
+        startMm: { xMm: left - offset, yMm: top },
+        endMm: { xMm: left - offset, yMm: top - BRACKET_HEIGHT_MM },
+        orientation,
+        label: `E ${formatMm(obj.elevationMm)}`,
+      },
     );
   }
 

@@ -2,9 +2,9 @@ export type Tool = "none" | "ramp" | "landing" | "delete";
 
 export type ObjectKind = "ramp" | "landing" | "stairs";
 
-export type MeasurementKey = "L1" | "L2" | "W1" | "W2" | "H" | "E";
+export type MeasurementKey = "L1" | "L2" | "W1" | "W2" | "WL" | "WR" | "H" | "E";
 
-export const MEASUREMENT_KEYS: MeasurementKey[] = ["L1", "L2", "W1", "W2", "H", "E"];
+export const MEASUREMENT_KEYS: MeasurementKey[] = ["L1", "L2", "W1", "W2", "WL", "WR", "H", "E"];
 
 export type MeasurementState = Record<MeasurementKey, boolean>;
 

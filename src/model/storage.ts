@@ -59,6 +59,8 @@ const normaliseMeasurements = (value: any, elevationMm: number): MeasurementStat
     L2: fallback(legacyEnabled?.L ?? true),
     W1: fallback(legacyEnabled?.W ?? true),
     W2: fallback(legacyEnabled?.W ?? true),
+    WL: fallback(true),
+    WR: fallback(true),
     H: fallback(legacyEnabled?.H ?? true),
     E: fallback(legacyEnabled?.E ?? elevationMm > 0),
   };
