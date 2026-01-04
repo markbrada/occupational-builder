@@ -235,6 +235,7 @@ const buildBracketSegments = (obj: Object2D): DimensionSegment[] => {
   const topLeft = topLeftFromCenterMm({ xMm: obj.xMm, yMm: obj.yMm }, bbox);
   const left = topLeft.xMm;
   const top = topLeft.yMm;
+  const centerY = top + bbox.heightMm / 2;
 
   const brackets: DimensionSegment[] = [];
   const shouldShowHeight = obj.measurements.H;
@@ -246,13 +247,13 @@ const buildBracketSegments = (obj: Object2D): DimensionSegment[] => {
 
   if (shouldShowHeight) {
     const anchor = getAnchor(obj, "H");
-    const offset = anchor.offsetMm / 2;
+    const halfLength = anchor.offsetMm / 2;
     brackets.push({
       measurementKey: "H",
       objectId: obj.id,
-      startMm: { xMm: left - offset, yMm: top },
-      endMm: { xMm: left - offset, yMm: top - DIMENSION_BRACKET_HEIGHT_MM },
-      orientation: "vertical",
+      startMm: { xMm: obj.xMm - halfLength, yMm: centerY },
+      endMm: { xMm: obj.xMm + halfLength, yMm: centerY },
+      orientation: "horizontal",
       label: `H ${formatMm(obj.heightMm)}`,
       variant: "height",
       tickLengthMm: DIMENSION_TICK_LENGTH_MM,

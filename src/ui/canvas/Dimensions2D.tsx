@@ -16,13 +16,13 @@ type Dimensions2DProps = {
 
 const LABEL_PADDING = 6;
 const LABEL_FONT_SIZE = 14;
+const CAD_BLUE = "#2563eb";
+const TEXT_COLOR = "#000000";
 
 const measureTextWidth = (text: string, fontSize: number) => text.length * fontSize * 0.6;
 
 type DimensionLineProps = DimensionSegment & {
   cameraScale: number;
-  color: string;
-  isSelected: boolean;
   onPointerDown: () => void;
 };
 
@@ -33,14 +33,12 @@ const DimensionLine = ({
   label,
   tickLengthMm,
   cameraScale,
-  color,
-  isSelected,
   onPointerDown,
 }: DimensionLineProps) => {
-  const strokeWidth = 2 / cameraScale;
+  const strokeWidth = 2;
   const hitStrokeWidth = 10 / cameraScale;
-  const fontSize = LABEL_FONT_SIZE / cameraScale;
-  const padding = LABEL_PADDING / cameraScale;
+  const fontSize = LABEL_FONT_SIZE;
+  const padding = LABEL_PADDING;
   const startPx = { x: mmToPx(startMm.xMm), y: mmToPx(startMm.yMm) };
   const endPx = { x: mmToPx(endMm.xMm), y: mmToPx(endMm.yMm) };
   const tickHalf = mmToPx(tickLengthMm) / 2;
@@ -48,17 +46,15 @@ const DimensionLine = ({
   const labelWidth = measureTextWidth(label, fontSize) + padding * 2;
   const labelHeight = fontSize + padding * 2;
 
-  const labelX =
-    orientation === "horizontal" ? center.x - labelWidth / 2 : Math.min(startPx.x, endPx.x) - labelWidth - padding;
-  const labelY = center.y - labelHeight / 2;
+  const labelGroupX = center.x;
+  const labelGroupY = center.y;
+  const rotation = orientation === "vertical" ? -90 : 0;
 
   const handlePointerDown = (evt: any) => {
     evt.cancelBubble = true;
     onPointerDown();
   };
-
-  const fillColor = isSelected ? "#dbeafe" : "#f8fafc";
-  const strokeColor = isSelected ? "#2563eb" : color;
+  const strokeColor = CAD_BLUE;
 
   return (
     <Group onPointerDown={handlePointerDown} listening>
@@ -67,7 +63,7 @@ const DimensionLine = ({
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         hitStrokeWidth={hitStrokeWidth}
-        lineCap="butt"
+        lineCap="square"
       />
       {orientation === "horizontal" ? (
         <>
@@ -76,12 +72,14 @@ const DimensionLine = ({
             stroke={strokeColor}
             strokeWidth={strokeWidth}
             hitStrokeWidth={hitStrokeWidth}
+            lineCap="square"
           />
           <Line
             points={[endPx.x, endPx.y - tickHalf, endPx.x, endPx.y + tickHalf]}
             stroke={strokeColor}
             strokeWidth={strokeWidth}
             hitStrokeWidth={hitStrokeWidth}
+            lineCap="square"
           />
         </>
       ) : (
@@ -91,26 +89,31 @@ const DimensionLine = ({
             stroke={strokeColor}
             strokeWidth={strokeWidth}
             hitStrokeWidth={hitStrokeWidth}
+            lineCap="square"
           />
           <Line
             points={[endPx.x - tickHalf, endPx.y, endPx.x + tickHalf, endPx.y]}
             stroke={strokeColor}
             strokeWidth={strokeWidth}
             hitStrokeWidth={hitStrokeWidth}
+            lineCap="square"
           />
         </>
       )}
-      <Rect
-        x={labelX}
-        y={labelY}
-        width={labelWidth}
-        height={labelHeight}
-        fill={fillColor}
-        stroke={strokeColor}
-        strokeWidth={strokeWidth}
-        cornerRadius={4 / cameraScale}
-      />
-      <Text x={labelX + padding} y={labelY + padding} text={label} fontSize={fontSize} fill={strokeColor} />
+      <Group x={labelGroupX} y={labelGroupY} rotation={rotation} listening>
+        <Rect x={-labelWidth / 2} y={-labelHeight / 2} width={labelWidth} height={labelHeight} fill="#ffffff" />
+        <Text
+          x={-labelWidth / 2 + padding}
+          y={-labelHeight / 2 + padding}
+          width={labelWidth - padding * 2}
+          height={labelHeight - padding * 2}
+          align="center"
+          verticalAlign="middle"
+          text={label}
+          fontSize={fontSize}
+          fill={TEXT_COLOR}
+        />
+      </Group>
     </Group>
   );
 };
@@ -136,7 +139,6 @@ export default function Dimensions2D({
       {objects.map((obj) => {
         const lines = dimensionsByObject[obj.id] ?? [];
         if (lines.length === 0) return null;
-        const color = obj.id === selectedId ? "#2563eb" : obj.locked ? "#94a3b8" : "#0f172a";
         return (
           <Group key={`dim-${obj.id}`}>
             {lines.map((line, idx) => (
@@ -144,8 +146,6 @@ export default function Dimensions2D({
                 key={`${obj.id}-${line.measurementKey}-${idx}`}
                 {...line}
                 cameraScale={cameraScale}
-                color={color}
-                isSelected={selectedMeasurementKey === line.measurementKey && selectedId === obj.id}
                 onPointerDown={() => onSelectMeasurement(obj.id, line.measurementKey)}
               />
             ))}

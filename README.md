@@ -170,6 +170,10 @@ Parameters:
 
 ## Changelog
 
+### v0.5.4
+- Updated 2D dimension styling to CAD-blue lines with centered black-on-white labels that scale with geometry and use square ticks.
+- Swapped the height bracket for a horizontal level-style leader that displays `H` measurements in-line while preserving elevation and wing dimensions.
+
 ### v0.5.3
 - Fixed the Inspector crash on load by safely handling empty selections.
 - Added a shared dimension geometry generator to supply reusable annotated segments for current 2D and future 3D renderers.
