@@ -1,12 +1,18 @@
 .ob-root {
-  min-height: 100vh;
+  height: 100vh;
   width: 100%;
   display: flex;
   flex-direction: column;
   background: #f6f7fb;
   color: #1f2933;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
-  overflow: clip;
+  overflow: hidden;
+}
+
+@supports (overflow: clip) {
+  .ob-root {
+    overflow: clip;
+  }
 }
 
 .ob-top {
