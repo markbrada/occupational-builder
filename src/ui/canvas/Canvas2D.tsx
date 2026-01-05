@@ -5,7 +5,6 @@ import { newLandingAt, newRampAt } from "../../model/defaults";
 import { centerFromTopLeftMm, getDefaultBoundingBoxMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
 import { mmToPx, pxToMm, snapMm } from "../../model/units";
 import Grid2D from "./Grid2D";
-import Dimensions2D from "./Dimensions2D";
 import ShapeLanding2D from "./ShapeLanding2D";
 import ShapeRamp2D from "./ShapeRamp2D";
 
@@ -674,12 +673,6 @@ export default function Canvas2D({
 
             <Layer>
               <Group {...worldGroupProps}>{objectNodes}</Group>
-            </Layer>
-
-            <Layer>
-              <Group {...worldGroupProps} {...workspaceClip}>
-                <Dimensions2D objects={objects} cameraScale={camera.scale} selectedId={selectedId} onSelect={onSelect} />
-              </Group>
             </Layer>
 
             <Layer listening={false}>
