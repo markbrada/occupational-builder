@@ -63,6 +63,16 @@ type Camera = {
 };
 
 type ScreenPoint = { x: number; y: number };
+type HandleCorner = "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
+
+type ResizeSession = {
+  objectId: string;
+  corner: HandleCorner;
+  anchor: PointMm;
+  rotationDeg: number;
+  dirX: number;
+  dirY: number;
+};
 
 const SNAP_THRESHOLD_MM = 20;
 const WORKSPACE_SIZE_MM = 40000;
@@ -72,6 +82,8 @@ const MAX_SCALE = 10;
 const VISIBLE_RATIO = 0.6;
 const WORKSPACE_HALF_PX = mmToPx(HALF_WORKSPACE_MM);
 const MIN_INCREMENT_MM = 1;
+const MIN_OBJECT_SIZE_MM = 100;
+const HANDLE_SIZE_PX = 12;
 
 const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
   const size = getObjectBoundingBoxMm(obj);
@@ -163,6 +175,51 @@ const clampCamera = (camera: Camera, viewport: CanvasSize): Camera => {
     tyPx,
   };
 };
+
+const rotatePointByDeg = (point: PointMm, rotationDeg: number): PointMm => {
+  const rad = (rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return { xMm: point.xMm * cos - point.yMm * sin, yMm: point.xMm * sin + point.yMm * cos };
+};
+
+const getBodySize = (obj: Object2D) => {
+  if (obj.kind === "ramp") {
+    return { lengthMm: obj.runMm, widthMm: obj.widthMm };
+  }
+  return { lengthMm: obj.lengthMm, widthMm: obj.widthMm };
+};
+
+const getHandleLocalPoint = (obj: Object2D, corner: HandleCorner): PointMm => {
+  const { lengthMm, widthMm } = getBodySize(obj);
+  const halfLength = lengthMm / 2;
+  const halfWidth = widthMm / 2;
+  const isLeft = corner === "topLeft" || corner === "bottomLeft";
+  const isTop = corner === "topLeft" || corner === "topRight";
+  return { xMm: isLeft ? -halfLength : halfLength, yMm: isTop ? -halfWidth : halfWidth };
+};
+
+const getHandleWorldPoint = (obj: Object2D, corner: HandleCorner): PointMm => {
+  const rotated = rotatePointByDeg(getHandleLocalPoint(obj, corner), obj.rotationDeg);
+  return { xMm: obj.xMm + rotated.xMm, yMm: obj.yMm + rotated.yMm };
+};
+
+const handleConfig: Record<
+  HandleCorner,
+  { anchor: HandleCorner; dirX: number; dirY: number; cursor: "nwse-resize" | "nesw-resize" }
+> = {
+  topLeft: { anchor: "bottomRight", dirX: -1, dirY: -1, cursor: "nwse-resize" },
+  topRight: { anchor: "bottomLeft", dirX: 1, dirY: -1, cursor: "nesw-resize" },
+  bottomLeft: { anchor: "topRight", dirX: -1, dirY: 1, cursor: "nesw-resize" },
+  bottomRight: { anchor: "topLeft", dirX: 1, dirY: 1, cursor: "nwse-resize" },
+};
+
+const getHandleCornerPointsMm = (obj: Object2D): Record<HandleCorner, PointMm> => ({
+  topLeft: getHandleWorldPoint(obj, "topLeft"),
+  topRight: getHandleWorldPoint(obj, "topRight"),
+  bottomLeft: getHandleWorldPoint(obj, "bottomLeft"),
+  bottomRight: getHandleWorldPoint(obj, "bottomRight"),
+});
 export default function Canvas2D({
   activeTool,
   snapToGrid,
@@ -183,10 +240,13 @@ export default function Canvas2D({
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [pointer, setPointer] = useState<PointerState>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [hoverHandle, setHoverHandle] = useState<HandleCorner | null>(null);
   const [snapGuide, setSnapGuide] = useState<SnapGuideState>({ snappedPoint: null });
   const [spacePanning, setSpacePanning] = useState(false);
+  const [resizeState, setResizeState] = useState<ResizeSession | null>(null);
   const isPanningRef = useRef(false);
   const lastPanRef = useRef<ScreenPoint | null>(null);
+  const resizeCommittedRef = useRef(false);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -286,6 +346,12 @@ export default function Canvas2D({
     };
   }, []);
 
+  useEffect(() => {
+    setResizeState(null);
+    resizeCommittedRef.current = false;
+    setHoverHandle(null);
+  }, [selectedId]);
+
   const pointerMm: PointMm | null = useMemo(() => {
     if (!pointer || !camera) return null;
     return screenToWorldMm(pointer, camera);
@@ -363,6 +429,10 @@ export default function Canvas2D({
     const pos = stageRef.current.getPointerPosition();
     if (!pos) return;
 
+    if (resizeState) {
+      handleResizeDrag(pos);
+    }
+
     if (isPanningRef.current) {
       const last = lastPanRef.current ?? pos;
       const dx = pos.x - last.x;
@@ -387,6 +457,11 @@ export default function Canvas2D({
   };
 
   const handleStageMouseUp = () => {
+    setResizeState(null);
+    resizeCommittedRef.current = false;
+    if (stageRef.current) {
+      stageRef.current.container().style.cursor = "";
+    }
     stopPanning();
   };
 
@@ -394,6 +469,12 @@ export default function Canvas2D({
     stopPanning();
     setPointer(null);
     setHoverId(null);
+    setHoverHandle(null);
+    setResizeState(null);
+    resizeCommittedRef.current = false;
+    if (stageRef.current) {
+      stageRef.current.container().style.cursor = "";
+    }
   };
 
   const handleStageMouseDown = (evt: any) => {
@@ -471,6 +552,67 @@ export default function Canvas2D({
     if (stageRef.current) {
       stageRef.current.container().style.cursor = "grabbing";
     }
+  };
+
+  const handleResizeDrag = (pos: ScreenPoint) => {
+    if (!resizeState || !camera) return;
+    const obj = objects.find((candidate) => candidate.id === resizeState.objectId);
+    if (!obj || obj.locked) return;
+
+    const pointerMm = screenToWorldMm(pos, camera);
+    const relX = pointerMm.xMm - resizeState.anchor.xMm;
+    const relY = pointerMm.yMm - resizeState.anchor.yMm;
+
+    const rad = (resizeState.rotationDeg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+
+    const localX = relX * cos + relY * sin;
+    const localY = -relX * sin + relY * cos;
+
+    const nextLengthMm = Math.max(MIN_OBJECT_SIZE_MM, snapMm(Math.abs(localX), snapIncrementMm));
+    const nextWidthMm = Math.max(MIN_OBJECT_SIZE_MM, snapMm(Math.abs(localY), snapIncrementMm));
+
+    const centreLocal = {
+      xMm: resizeState.dirX * nextLengthMm * 0.5,
+      yMm: resizeState.dirY * nextWidthMm * 0.5,
+    };
+
+    const centreWorld = {
+      xMm: resizeState.anchor.xMm + centreLocal.xMm * cos - centreLocal.yMm * sin,
+      yMm: resizeState.anchor.yMm + centreLocal.xMm * sin + centreLocal.yMm * cos,
+    };
+
+    const patch: Partial<Object2D> =
+      obj.kind === "ramp"
+        ? { xMm: centreWorld.xMm, yMm: centreWorld.yMm, lengthMm: nextLengthMm, runMm: nextLengthMm, widthMm: nextWidthMm }
+        : { xMm: centreWorld.xMm, yMm: centreWorld.yMm, lengthMm: nextLengthMm, widthMm: nextWidthMm };
+
+    const shouldCommit = !resizeCommittedRef.current;
+    onUpdateObject(obj.id, patch, shouldCommit);
+    if (shouldCommit) {
+      resizeCommittedRef.current = true;
+    }
+  };
+
+  const handleResizePointerDown = (evt: any, obj: Object2D, corner: HandleCorner) => {
+    if (obj.locked || activeTool === "delete" || spacePanning) return;
+    const config = handleConfig[corner];
+    const anchor = getHandleWorldPoint(obj, config.anchor);
+    resizeCommittedRef.current = false;
+    setResizeState({
+      objectId: obj.id,
+      corner,
+      anchor,
+      rotationDeg: obj.rotationDeg,
+      dirX: config.dirX,
+      dirY: config.dirY,
+    });
+    setHoverHandle(corner);
+    if (stageRef.current) {
+      stageRef.current.container().style.cursor = config.cursor;
+    }
+    evt.cancelBubble = true;
   };
 
   const pickBestAxisCandidate = (candidates: SnapAxisCandidate[]): SnapAxisCandidate | undefined => {
@@ -663,6 +805,50 @@ export default function Canvas2D({
     return <ShapeLanding2D {...landingProps} />;
   });
 
+  const selectedObject = selectedId ? objects.find((obj) => obj.id === selectedId) ?? null : null;
+  const canResize = Boolean(selectedObject && !selectedObject.locked);
+  const activeSelection = canResize && selectedObject ? selectedObject : null;
+  const handlePoints = activeSelection ? getHandleCornerPointsMm(activeSelection) : null;
+
+  const resizeHandles =
+    canResize && handlePoints
+      ? (Object.entries(handlePoints) as Array<[HandleCorner, PointMm]>).map(([corner, point]) => {
+          const config = handleConfig[corner];
+          const x = mmToPx(point.xMm);
+          const y = mmToPx(point.yMm);
+          const isHover = hoverHandle === corner || resizeState?.corner === corner;
+          const fill = isHover ? "#bfdbfe" : "#ffffff";
+          const stroke = isHover ? "#2563eb" : "#1f2937";
+          return (
+            <Rect
+              key={`handle-${corner}`}
+              x={x - HANDLE_SIZE_PX / 2}
+              y={y - HANDLE_SIZE_PX / 2}
+              width={HANDLE_SIZE_PX}
+              height={HANDLE_SIZE_PX}
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={2}
+              cornerRadius={3}
+              onPointerDown={(evt) => activeSelection && handleResizePointerDown(evt, activeSelection, corner)}
+              onMouseEnter={() => {
+                setHoverHandle(corner);
+                if (stageRef.current) {
+                  stageRef.current.container().style.cursor = config.cursor;
+                }
+              }}
+              onMouseLeave={() => {
+                setHoverHandle((current) => (current === corner ? null : current));
+                if (!resizeState && stageRef.current) {
+                  stageRef.current.container().style.cursor = "";
+                }
+              }}
+              listening={!spacePanning}
+            />
+          );
+        })
+      : null;
+
   return (
     <div className="ob-canvasHost" ref={containerRef} data-tool={activeTool}>
       {hasSize && camera ? (
@@ -688,6 +874,10 @@ export default function Canvas2D({
 
             <Layer>
               <Group {...worldGroupProps}>{objectNodes}</Group>
+            </Layer>
+
+            <Layer>
+              <Group {...worldGroupProps}>{resizeHandles}</Group>
             </Layer>
 
             <Layer listening={false}>
