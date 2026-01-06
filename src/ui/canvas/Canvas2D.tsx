@@ -842,7 +842,6 @@ export default function Canvas2D({
                 enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
                 rotateEnabled={false}
                 flipEnabled={false}
-                keepRatio={false}
                 anchorSize={10}
                 anchorStroke="#1f2937"
                 anchorFill="#e2e8f0"

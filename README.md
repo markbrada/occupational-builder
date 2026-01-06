@@ -1,6 +1,6 @@
 # Occupational Builder
 
-**Build version:** v0.6.1  
+**Build version:** v0.4.5  
 **Status:** Active development (v1 scope)
 
 Occupational Builder is a **design-only, browser-based ramp and platform builder** for occupational access scenarios.  
@@ -169,9 +169,6 @@ Parameters:
 ---
 
 ## Changelog
-
-### v0.6.1
-- Unlocked corner resizing for ramps and platforms so width and length can be stretched independently without preserving aspect ratio while retaining existing snapping and drag behaviour.
 
 ### v0.6.0
 - Added Konva transformer handles to ramps and platforms for corner-based resizing with snap-aware, mm-accurate dimensions and minimum sizing, while keeping ramp wings aligned to their bodies.
