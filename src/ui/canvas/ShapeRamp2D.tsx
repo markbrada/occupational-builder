@@ -1,6 +1,4 @@
-import { forwardRef, type ForwardedRef } from "react";
 import { Group, Line, Arrow } from "react-konva";
-import type Konva from "konva";
 import { getRampOutlinePointsMm, getRampSeamLinesMm } from "../../model/geometry";
 import { RampObj, Tool } from "../../model/types";
 import { mmToPx } from "../../model/units";
@@ -20,23 +18,20 @@ type Props = {
   onDragEnd?: (evt: any) => void;
 };
 
-function ShapeRamp2D(
-  {
-    obj,
-    selected,
-    hover,
-    activeTool,
-    draggable,
-    dragBoundFunc,
-    ghost = false,
-    onPointerDown,
-    onMouseEnter,
-    onMouseLeave,
-    onDragStart,
-    onDragEnd,
-  }: Props,
-  ref: ForwardedRef<Konva.Group>,
-) {
+export default function ShapeRamp2D({
+  obj,
+  selected,
+  hover,
+  activeTool,
+  draggable,
+  dragBoundFunc,
+  ghost = false,
+  onPointerDown,
+  onMouseEnter,
+  onMouseLeave,
+  onDragStart,
+  onDragEnd,
+}: Props) {
   const fill = ghost ? "rgba(59,130,246,0.25)" : "#e5e7eb";
   const stroke =
     activeTool === "delete" && hover
@@ -65,7 +60,6 @@ function ShapeRamp2D(
 
   return (
     <Group
-      ref={ref}
       x={mmToPx(obj.xMm)}
       y={mmToPx(obj.yMm)}
       draggable={draggable && !ghost}
@@ -104,5 +98,3 @@ function ShapeRamp2D(
     </Group>
   );
 }
-
-export default forwardRef<Konva.Group, Props>(ShapeRamp2D);

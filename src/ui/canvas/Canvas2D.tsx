@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Group, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
-import type Konva from "konva";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import { BaseObj, LandingObj, Object2D, RampObj, SnapIncrementMm, Tool } from "../../model/types";
 import { newLandingAt, newRampAt } from "../../model/defaults";
 import { centerFromTopLeftMm, getDefaultBoundingBoxMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
@@ -73,28 +72,6 @@ const MAX_SCALE = 10;
 const VISIBLE_RATIO = 0.6;
 const WORKSPACE_HALF_PX = mmToPx(HALF_WORKSPACE_MM);
 const MIN_INCREMENT_MM = 1;
-const MIN_SIDE_MM = 100;
-
-const getBodySizeMm = (obj: Object2D) =>
-  obj.kind === "ramp" ? { widthMm: obj.runMm, heightMm: obj.widthMm } : { widthMm: obj.lengthMm, heightMm: obj.widthMm };
-
-const getBodyAabbMm = (obj: Object2D): AabbMm => {
-  const { widthMm, heightMm } = getBodySizeMm(obj);
-  const left = obj.xMm - widthMm / 2;
-  const right = obj.xMm + widthMm / 2;
-  const top = obj.yMm - heightMm / 2;
-  const bottom = obj.yMm + heightMm / 2;
-  return {
-    left,
-    right,
-    top,
-    bottom,
-    cx: obj.xMm,
-    cy: obj.yMm,
-    w: widthMm,
-    h: heightMm,
-  };
-};
 
 const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
   const size = getObjectBoundingBoxMm(obj);
@@ -210,9 +187,6 @@ export default function Canvas2D({
   const [spacePanning, setSpacePanning] = useState(false);
   const isPanningRef = useRef(false);
   const lastPanRef = useRef<ScreenPoint | null>(null);
-  const transformerRef = useRef<Konva.Transformer | null>(null);
-  const transformerBoxMmRef = useRef<AabbMm | null>(null);
-  const objectRefs = useRef<Record<string, Konva.Group | null>>({});
 
   useEffect(() => {
     const node = containerRef.current;
@@ -331,8 +305,6 @@ export default function Canvas2D({
     return { xMm: snapMm(pointerMmClamped.xMm, stepMm), yMm: snapMm(pointerMmClamped.yMm, stepMm) };
   }, [pointerMmClamped, snapIncrementMm, snapToGrid]);
 
-  const selectedObj = useMemo(() => objects.find((obj) => obj.id === selectedId) ?? null, [objects, selectedId]);
-
   const snapMarkerPx = useMemo(() => {
     if (!desiredAnchorMm || !snapToGrid) return null;
     return { x: mmToPx(desiredAnchorMm.xMm), y: mmToPx(desiredAnchorMm.yMm) };
@@ -355,40 +327,6 @@ export default function Canvas2D({
   const clampedSnapY =
     snapGuide.snappedY !== undefined ? clamp(mmToPx(snapGuide.snappedY), -WORKSPACE_HALF_PX, WORKSPACE_HALF_PX) : null;
   const snapPointRadius = camera ? 4 / camera.scale : 4;
-  const anchorSize = camera ? 10 / camera.scale : 10;
-  const anchorStrokeWidth = camera ? 1.5 / camera.scale : 1.5;
-  const anchorCornerRadius = camera ? 2 / camera.scale : 2;
-  const transformerBorderWidth = camera ? 2 / camera.scale : 2;
-
-  const syncTransformerSelection = useCallback(
-    (nodeOverride?: Konva.Group | null) => {
-      const transformer = transformerRef.current;
-      if (!transformer) return;
-      const node = nodeOverride ?? (selectedId ? objectRefs.current[selectedId] ?? null : null);
-      if (node && selectedObj && !selectedObj.locked) {
-        transformer.nodes([node]);
-      } else {
-        transformer.nodes([]);
-      }
-      transformer.getLayer()?.batchDraw();
-    },
-    [selectedId, selectedObj],
-  );
-
-  const handleSetNodeRef = useCallback(
-    (id: string, node: Konva.Group | null) => {
-      if (node) {
-        objectRefs.current[id] = node;
-      } else {
-        delete objectRefs.current[id];
-      }
-
-      if (id === selectedId) {
-        syncTransformerSelection(node);
-      }
-    },
-    [selectedId, syncTransformerSelection],
-  );
 
   const getPlacementCentreFromAnchor = (tool: Tool, anchor: PointMm): PointMm | null => {
     const bbox = getDefaultBoundingBoxMm(tool);
@@ -419,17 +357,6 @@ export default function Canvas2D({
       locked: true,
     };
   }, [activeTool, desiredAnchorMm]);
-
-  useEffect(() => {
-    syncTransformerSelection();
-    transformerBoxMmRef.current = selectedObj ? getBodyAabbMm(selectedObj) : null;
-  }, [selectedObj, syncTransformerSelection]);
-
-  useEffect(() => {
-    if (transformerRef.current) {
-      transformerRef.current.forceUpdate();
-    }
-  }, [camera]);
 
   const handleStagePointerMove = () => {
     if (!stageRef.current || !camera) return;
@@ -555,39 +482,6 @@ export default function Canvas2D({
       return best;
     }, undefined);
   };
-
-  const snapEdgeMm = useCallback(
-    (valueMm: number, axis: "x" | "y"): { valueMm: number; snappedToObject: boolean } => {
-      let snappedValue = valueMm;
-      let snappedToObject = false;
-
-      if (snapToObjects) {
-        let bestDelta = Infinity;
-        objects.forEach((other) => {
-          if (other.id === selectedId) return;
-          const aabb = getAabbMm(other);
-          const candidates = axis === "x" ? [aabb.left, aabb.cx, aabb.right] : [aabb.top, aabb.cy, aabb.bottom];
-          candidates.forEach((coord) => {
-            const delta = coord - valueMm;
-            if (Math.abs(delta) <= SNAP_THRESHOLD_MM && Math.abs(delta) < Math.abs(bestDelta)) {
-              bestDelta = delta;
-            }
-          });
-        });
-
-        if (Number.isFinite(bestDelta) && bestDelta !== Infinity) {
-          snappedValue = valueMm + bestDelta;
-          snappedToObject = true;
-        }
-      }
-
-      const baseStep = snapToGrid ? snapIncrementMm : MIN_INCREMENT_MM;
-      snappedValue = snapMm(snappedValue, snappedToObject ? MIN_INCREMENT_MM : baseStep);
-
-      return { valueMm: snappedValue, snappedToObject };
-    },
-    [objects, selectedId, snapIncrementMm, snapToGrid, snapToObjects],
-  );
 
   const getObjectSnap = (obj: Object2D, proposedCentre: PointMm) => {
     const bbox = getObjectBoundingBoxMm(obj);
@@ -717,122 +611,6 @@ export default function Canvas2D({
     setSnapGuide({ snappedPoint: null });
   };
 
-  const transformerBoundBox = useCallback(
-    (oldBox: any, newBox: any) => {
-      if (!camera || !selectedObj || selectedObj.locked) {
-        return oldBox;
-      }
-
-      const anchor = transformerRef.current?.getActiveAnchor?.() ?? "";
-      const moveLeft = anchor.includes("left");
-      const moveRight = anchor.includes("right");
-      const moveTop = anchor.includes("top");
-      const moveBottom = anchor.includes("bottom");
-
-      const baseBox = getBodyAabbMm(selectedObj);
-      const toMmX = (x: number) => pxToMm(screenToWorldPx({ x, y: 0 }, camera).x);
-      const toMmY = (y: number) => pxToMm(screenToWorldPx({ x: 0, y }, camera).y);
-
-      const leftSnap = moveLeft ? snapEdgeMm(toMmX(newBox.x), "x") : { valueMm: baseBox.left, snappedToObject: false };
-      const rightSnap = moveRight
-        ? snapEdgeMm(toMmX(newBox.x + newBox.width), "x")
-        : { valueMm: baseBox.right, snappedToObject: false };
-      const topSnap = moveTop ? snapEdgeMm(toMmY(newBox.y), "y") : { valueMm: baseBox.top, snappedToObject: false };
-      const bottomSnap = moveBottom
-        ? snapEdgeMm(toMmY(newBox.y + newBox.height), "y")
-        : { valueMm: baseBox.bottom, snappedToObject: false };
-
-      let leftMm = leftSnap.valueMm;
-      let rightMm = rightSnap.valueMm;
-      let topMm = topSnap.valueMm;
-      let bottomMm = bottomSnap.valueMm;
-
-      let nextWidthMm = rightMm - leftMm;
-      let nextHeightMm = bottomMm - topMm;
-
-      if (nextWidthMm < MIN_SIDE_MM) {
-        if (moveLeft && !moveRight) {
-          leftMm = rightMm - MIN_SIDE_MM;
-        } else if (moveRight && !moveLeft) {
-          rightMm = leftMm + MIN_SIDE_MM;
-        } else {
-          rightMm = leftMm + MIN_SIDE_MM;
-        }
-        nextWidthMm = rightMm - leftMm;
-      }
-
-      if (nextHeightMm < MIN_SIDE_MM) {
-        if (moveTop && !moveBottom) {
-          topMm = bottomMm - MIN_SIDE_MM;
-        } else if (moveBottom && !moveTop) {
-          bottomMm = topMm + MIN_SIDE_MM;
-        } else {
-          bottomMm = topMm + MIN_SIDE_MM;
-        }
-        nextHeightMm = bottomMm - topMm;
-      }
-
-      const nextBoxMm: AabbMm = {
-        left: leftMm,
-        right: rightMm,
-        top: topMm,
-        bottom: bottomMm,
-        cx: leftMm + nextWidthMm / 2,
-        cy: topMm + nextHeightMm / 2,
-        w: nextWidthMm,
-        h: nextHeightMm,
-      };
-
-      transformerBoxMmRef.current = nextBoxMm;
-
-      const snapState: SnapGuideState = { snappedPoint: null };
-      const snappedX =
-        (moveLeft && leftSnap.snappedToObject && nextBoxMm.left) ||
-        (moveRight && rightSnap.snappedToObject && nextBoxMm.right) ||
-        undefined;
-      const snappedY =
-        (moveTop && topSnap.snappedToObject && nextBoxMm.top) ||
-        (moveBottom && bottomSnap.snappedToObject && nextBoxMm.bottom) ||
-        undefined;
-      if (snappedX !== undefined || snappedY !== undefined) {
-        snapState.snappedX = snappedX;
-        snapState.snappedY = snappedY;
-      } else {
-        snapState.snappedX = undefined;
-        snapState.snappedY = undefined;
-      }
-      setSnapGuide(snapState);
-
-      return {
-        x: mmToPx(nextBoxMm.left) * camera.scale + camera.txPx,
-        y: mmToPx(nextBoxMm.top) * camera.scale + camera.tyPx,
-        width: mmToPx(nextBoxMm.w) * camera.scale,
-        height: mmToPx(nextBoxMm.h) * camera.scale,
-      };
-    },
-    [camera, selectedObj, snapEdgeMm],
-  );
-
-  const handleTransformEnd = () => {
-    if (!selectedObj) return;
-    const node = transformerRef.current?.nodes()?.[0];
-    if (node) {
-      node.scaleX(1);
-      node.scaleY(1);
-    }
-    const finalBox = transformerBoxMmRef.current ?? getBodyAabbMm(selectedObj);
-    const nextLengthMm = finalBox.w;
-    const nextWidthMm = finalBox.h;
-    const patch: Partial<Object2D> =
-      selectedObj.kind === "ramp"
-        ? { xMm: finalBox.cx, yMm: finalBox.cy, lengthMm: nextLengthMm, widthMm: nextWidthMm, runMm: nextLengthMm }
-        : { xMm: finalBox.cx, yMm: finalBox.cy, lengthMm: nextLengthMm, widthMm: nextWidthMm };
-    onUpdateObject(selectedObj.id, patch, true);
-    transformerBoxMmRef.current = finalBox;
-    setSnapGuide({ snappedPoint: null });
-    syncTransformerSelection();
-  };
-
   const hudLabel = useMemo(() => {
     if (!pointer || (activeTool !== "ramp" && activeTool !== "landing")) return null;
     const label = activeTool === "ramp" ? "Click to place Ramp (Esc to cancel)" : "Click to place Landing (Esc to cancel)";
@@ -866,7 +644,6 @@ export default function Canvas2D({
         onDragStart: handleObjectDragStart,
         onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
         ...hoverHandlers,
-        ref: (node: Konva.Group | null) => handleSetNodeRef(obj.id, node),
       };
       return <ShapeRamp2D {...rampProps} />;
     }
@@ -882,7 +659,6 @@ export default function Canvas2D({
       onDragStart: handleObjectDragStart,
       onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
       ...hoverHandlers,
-      ref: (node: Konva.Group | null) => handleSetNodeRef(obj.id, node),
     };
     return <ShapeLanding2D {...landingProps} />;
   });
@@ -911,41 +687,7 @@ export default function Canvas2D({
             </Layer>
 
             <Layer>
-              <Group {...worldGroupProps}>
-                {objectNodes}
-                {selectedObj && !selectedObj.locked && (
-                  <Transformer
-                    ref={transformerRef}
-                    boundBoxFunc={transformerBoundBox}
-                    onTransformEnd={handleTransformEnd}
-                    enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
-                    rotateEnabled={false}
-                    anchorSize={anchorSize}
-                    anchorStroke="#2563eb"
-                    anchorFill="#ffffff"
-                    anchorStrokeWidth={anchorStrokeWidth}
-                    anchorCornerRadius={anchorCornerRadius}
-                    borderStroke="#2563eb"
-                    borderStrokeWidth={transformerBorderWidth}
-                    anchorStyleFunc={(anchor) => {
-                      anchor.fill("#ffffff");
-                      anchor.stroke("#2563eb");
-                      anchor.strokeWidth(anchorStrokeWidth);
-                      if (!anchor.getAttr("data-hover-handlers")) {
-                        anchor.setAttr("data-hover-handlers", true);
-                        anchor.on("mouseenter", () => {
-                          anchor.fill("#bfdbfe");
-                          anchor.getLayer()?.batchDraw();
-                        });
-                        anchor.on("mouseleave", () => {
-                          anchor.fill("#ffffff");
-                          anchor.getLayer()?.batchDraw();
-                        });
-                      }
-                    }}
-                  />
-                )}
-              </Group>
+              <Group {...worldGroupProps}>{objectNodes}</Group>
             </Layer>
 
             <Layer listening={false}>

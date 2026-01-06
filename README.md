@@ -170,10 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.5.1
-- Added zoom-aware corner transformers for ramps and landings with grid/object snapping, 100mm minimum sizing, and mm-based updates on resize end.
-- Limited ramp resize bounds to the main body while keeping wing outlines aligned after width changes and refreshed transformer bindings on selection changes.
-
 ### v0.5.0
 - Split snapping controls into separate grid/object toggles with configurable 1/10/100/1000mm increments plus status readouts.
 - Updated snapping logic and autosave to honour the selected increment, prioritise object magnetism, and keep grid visuals aligned for large steps.
