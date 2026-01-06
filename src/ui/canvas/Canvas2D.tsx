@@ -462,6 +462,7 @@ export default function Canvas2D({
     setResizeState(null);
     resizeCommittedRef.current = false;
     setDraggingId(null);
+    setSnapGuide({ snappedPoint: null });
     if (stageRef.current) {
       stageRef.current.container().style.cursor = "";
     }
@@ -476,6 +477,7 @@ export default function Canvas2D({
     setResizeState(null);
     resizeCommittedRef.current = false;
     setDraggingId(null);
+    setSnapGuide({ snappedPoint: null });
     if (stageRef.current) {
       stageRef.current.container().style.cursor = "";
     }
@@ -647,6 +649,21 @@ export default function Canvas2D({
     const bestX = pickBestAxisCandidate(xCandidates);
     const bestY = pickBestAxisCandidate(yCandidates);
 
+    const xSnappedToObject = snapToObjects && Boolean(bestX);
+    const ySnappedToObject = snapToObjects && Boolean(bestY);
+    const snappedPoint =
+      snapToObjects && (bestX?.type === "poi" ? bestX.targetPoint : bestY?.type === "poi" ? bestY.targetPoint : null);
+
+    if (snapToObjects && (bestX || bestY)) {
+      setSnapGuide({
+        snappedX: xSnappedToObject ? bestX?.snapCoord : undefined,
+        snappedY: ySnappedToObject ? bestY?.snapCoord : undefined,
+        snappedPoint: snappedPoint ? { xMm: snappedPoint.x, yMm: snappedPoint.y } : null,
+      });
+    } else {
+      setSnapGuide({ snappedPoint: null });
+    }
+
     const snappedCornerWorld = {
       xMm: movingCornerWorld.xMm + (bestX ? bestX.delta : 0),
       yMm: movingCornerWorld.yMm + (bestY ? bestY.delta : 0),
@@ -660,9 +677,6 @@ export default function Canvas2D({
 
     const snappedDirectionalX = enforceDirectionalMin(snappedLocalX, resizeState.dirX);
     const snappedDirectionalY = enforceDirectionalMin(snappedLocalY, resizeState.dirY);
-
-    const xSnappedToObject = snapToObjects && Boolean(bestX);
-    const ySnappedToObject = snapToObjects && Boolean(bestY);
 
     const nextLengthMm = Math.max(
       MIN_OBJECT_SIZE_MM,

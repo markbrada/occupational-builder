@@ -170,6 +170,9 @@ Parameters:
 
 ## Changelog
 
+### v0.6.2
+- Show snap guide lines during object-to-object resize snapping and clear them when resizing ends.
+
 ### v0.6.1b
 - Normalised resize handles to stay a consistent on-screen size at all zoom levels and hide while dragging to remove lingering ghosts.
 - Locked resizing to respect the 100mm minimum without flipping growth direction, aligned unsnapped resizing to 1mm steps, and added snap-to-object alignment while resizing.
