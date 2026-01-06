@@ -170,6 +170,11 @@ Parameters:
 
 ## Changelog
 
+### v0.6.1b
+- Normalised resize handles to stay a consistent on-screen size at all zoom levels and hide while dragging to remove lingering ghosts.
+- Locked resizing to respect the 100mm minimum without flipping growth direction, aligned unsnapped resizing to 1mm steps, and added snap-to-object alignment while resizing.
+- Fixed snap-to-grid toggling during resize so grid-off uses 1mm increments.
+
 ### v0.6.0
 - Added mm-snapped corner resize handles for ramps and landings with 100mm minimums, blue hover highlights, and wing-aware ramp bounding that keeps anchors fixed while resizing the main body.
 
