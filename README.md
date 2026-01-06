@@ -170,6 +170,12 @@ Parameters:
 
 ## Changelog
 
+### v0.6.1
+- Refined corner resize handles to stay a consistent on-screen size, hide while dragging objects, clamp at 100mm without flipping, and respect snapping rules (including 1mm steps when grid snapping is off and object-to-object snaps while resizing).
+
+### v0.6.0
+- Added mm-snapped corner resize handles for ramps and landings with 100mm minimums, blue hover highlights, and wing-aware ramp bounding that keeps anchors fixed while resizing the main body.
+
 ### v0.5.0
 - Split snapping controls into separate grid/object toggles with configurable 1/10/100/1000mm increments plus status readouts.
 - Updated snapping logic and autosave to honour the selected increment, prioritise object magnetism, and keep grid visuals aligned for large steps.
