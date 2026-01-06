@@ -170,9 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.6.2
-- Corrected transformer resizing to derive centres from the top-left bounds so corner drags resize without drifting and clamp to the workspace edge without escaping the clipped area.
-
 ### v0.6.1
 - Unlocked corner resizing for ramps and platforms so width and length can be stretched independently without preserving aspect ratio while retaining existing snapping and drag behaviour.
 

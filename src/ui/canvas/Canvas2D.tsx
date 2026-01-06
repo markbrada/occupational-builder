@@ -630,40 +630,25 @@ export default function Canvas2D({
     };
   };
 
-  const clampCentreToWorkspace = (centre: PointMm): PointMm => ({
-    xMm: clamp(centre.xMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
-    yMm: clamp(centre.yMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
-  });
-
-  const getTransformInitialState = (obj: Object2D) => {
+  const handleObjectTransform = (evt: any, obj: Object2D) => {
+    if (!camera) return;
+    if (obj.locked) return;
+    const node = evt.target;
     const current = transformStateRef.current;
-    if (current && current.id === obj.id) {
-      return current;
-    }
-    const initialLengthMm = obj.kind === "ramp" ? obj.runMm : obj.lengthMm;
-    return {
-      id: obj.id,
-      initialLengthMm,
-      initialWidthMm: obj.widthMm,
-      last: {
-        xMm: obj.xMm,
-        yMm: obj.yMm,
-        lengthMm: initialLengthMm,
-        widthMm: obj.widthMm,
-      },
-    };
-  };
-
-  const getNodeTopLeftMm = (node: any): PointMm | null => {
-    if (!camera || !stageRef.current) return null;
-    const rect = node.getClientRect({ relativeTo: stageRef.current });
-    const worldPx = { x: (rect.x - camera.txPx) / camera.scale, y: (rect.y - camera.tyPx) / camera.scale };
-    return { xMm: pxToMm(worldPx.x), yMm: pxToMm(worldPx.y) };
-  };
-
-  const computeSnappedTransform = (node: any, obj: Object2D) => {
-    if (!camera) return null;
-    const initialState = getTransformInitialState(obj);
+    const initialState =
+      current && current.id === obj.id
+        ? current
+        : {
+            id: obj.id,
+            initialLengthMm: obj.kind === "ramp" ? obj.runMm : obj.lengthMm,
+            initialWidthMm: obj.widthMm,
+            last: {
+              xMm: obj.xMm,
+              yMm: obj.yMm,
+              lengthMm: obj.kind === "ramp" ? obj.runMm : obj.lengthMm,
+              widthMm: obj.widthMm,
+            },
+          };
     const snapStep = snapToGrid ? snapIncrementMm : MIN_INCREMENT_MM;
 
     const rawScaleX = Math.max(node.scaleX(), 0);
@@ -675,100 +660,54 @@ export default function Canvas2D({
     const snappedLength = snapMm(clampedLength, snapStep);
     const snappedWidth = snapMm(clampedWidth, snapStep);
 
-    const topLeft = getNodeTopLeftMm(node);
-    if (!topLeft) return null;
+    const absolute = node.getAbsolutePosition();
+    const proposedCentre = screenToWorldMm(absolute, camera);
 
     const nextObj =
       obj.kind === "ramp"
         ? ({ ...obj, lengthMm: snappedLength, runMm: snappedLength, widthMm: snappedWidth } as Object2D)
         : ({ ...obj, lengthMm: snappedLength, widthMm: snappedWidth } as Object2D);
 
-    const bbox = getObjectBoundingBoxMm(nextObj);
-    const proposedCentre = centerFromTopLeftMm(topLeft, bbox);
     const snappedCentre = getObjectSnap(nextObj, proposedCentre);
-    const clampedCentre = clampCentreToWorkspace(snappedCentre);
 
     const snappedScaleX = snappedLength / initialState.initialLengthMm;
     const snappedScaleY = snappedWidth / initialState.initialWidthMm;
-
-    return {
-      centre: clampedCentre,
-      snappedLength,
-      snappedWidth,
-      snappedScaleX,
-      snappedScaleY,
-      initialState,
-    };
-  };
-
-  const handleObjectTransform = (evt: any, obj: Object2D) => {
-    if (!camera) return;
-    if (obj.locked) return;
-    const node = evt.target;
-    const result = computeSnappedTransform(node, obj);
-    if (!result) return;
-
-    const { centre, snappedLength, snappedWidth, snappedScaleX, snappedScaleY, initialState } = result;
     node.scaleX(snappedScaleX);
     node.scaleY(snappedScaleY);
 
-    const snappedStage = worldToScreen(centre, camera);
+    const snappedStage = worldToScreen(snappedCentre, camera);
     node.setAbsolutePosition(snappedStage);
 
     transformStateRef.current = {
       ...initialState,
-      last: { xMm: centre.xMm, yMm: centre.yMm, lengthMm: snappedLength, widthMm: snappedWidth },
+      last: { xMm: snappedCentre.xMm, yMm: snappedCentre.yMm, lengthMm: snappedLength, widthMm: snappedWidth },
     };
   };
 
   const handleObjectTransformEnd = (evt: any, obj: Object2D) => {
     if (!camera) return;
     if (obj.locked) return;
-    const node = evt.target;
-    const result = computeSnappedTransform(node, obj);
     const state = transformStateRef.current;
+    const node = evt.target;
     const lastState =
-      result?.centre && result.snappedLength && result.snappedWidth
-        ? {
-            xMm: result.centre.xMm,
-            yMm: result.centre.yMm,
-            lengthMm: result.snappedLength,
-            widthMm: result.snappedWidth,
-          }
-        : state && state.id === obj.id
-          ? state.last
-          : {
-              xMm: obj.xMm,
-              yMm: obj.yMm,
-              lengthMm: obj.kind === "ramp" ? obj.runMm : obj.lengthMm,
-              widthMm: obj.widthMm,
-            };
-    const clampedLastState = {
-      ...lastState,
-      xMm: clamp(lastState.xMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
-      yMm: clamp(lastState.yMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
-    };
+      state && state.id === obj.id
+        ? state.last
+        : {
+            xMm: obj.xMm,
+            yMm: obj.yMm,
+            lengthMm: obj.kind === "ramp" ? obj.runMm : obj.lengthMm,
+            widthMm: obj.widthMm,
+          };
     const patch: Partial<Object2D> =
       obj.kind === "ramp"
-        ? {
-            xMm: clampedLastState.xMm,
-            yMm: clampedLastState.yMm,
-            lengthMm: clampedLastState.lengthMm,
-            runMm: clampedLastState.lengthMm,
-            widthMm: clampedLastState.widthMm,
-          }
-        : {
-            xMm: clampedLastState.xMm,
-            yMm: clampedLastState.yMm,
-            lengthMm: clampedLastState.lengthMm,
-            widthMm: clampedLastState.widthMm,
-          };
+        ? { xMm: lastState.xMm, yMm: lastState.yMm, lengthMm: lastState.lengthMm, runMm: lastState.lengthMm, widthMm: lastState.widthMm }
+        : { xMm: lastState.xMm, yMm: lastState.yMm, lengthMm: lastState.lengthMm, widthMm: lastState.widthMm };
     onUpdateObject(obj.id, patch, true);
     setSnapGuide({ snappedPoint: null });
 
     node.scaleX(1);
     node.scaleY(1);
-    const snappedStage = worldToScreen({ xMm: clampedLastState.xMm, yMm: clampedLastState.yMm }, camera);
+    const snappedStage = worldToScreen({ xMm: lastState.xMm, yMm: lastState.yMm }, camera);
     node.setAbsolutePosition(snappedStage);
     transformStateRef.current = null;
   };
