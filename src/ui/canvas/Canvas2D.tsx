@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Group, Layer, Line, Rect, Stage, Text, Transformer } from "react-konva";
+import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import { BaseObj, LandingObj, Object2D, RampObj, SnapIncrementMm, Tool } from "../../model/types";
 import { newLandingAt, newRampAt } from "../../model/defaults";
 import { centerFromTopLeftMm, getDefaultBoundingBoxMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
@@ -72,7 +72,6 @@ const MAX_SCALE = 10;
 const VISIBLE_RATIO = 0.6;
 const WORKSPACE_HALF_PX = mmToPx(HALF_WORKSPACE_MM);
 const MIN_INCREMENT_MM = 1;
-const MIN_OBJECT_SIZE_MM = 100;
 
 const getAabbMm = (obj: Object2D, centerOverride?: PointMm): AabbMm => {
   const size = getObjectBoundingBoxMm(obj);
@@ -188,14 +187,6 @@ export default function Canvas2D({
   const [spacePanning, setSpacePanning] = useState(false);
   const isPanningRef = useRef(false);
   const lastPanRef = useRef<ScreenPoint | null>(null);
-  const transformerRef = useRef<any>(null);
-  const objectRefs = useRef<Record<string, any>>({});
-  const transformStateRef = useRef<{
-    id: string;
-    initialLengthMm: number;
-    initialWidthMm: number;
-    last: { xMm: number; yMm: number; lengthMm: number; widthMm: number };
-  } | null>(null);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -620,98 +611,6 @@ export default function Canvas2D({
     setSnapGuide({ snappedPoint: null });
   };
 
-  const handleObjectTransformStart = (obj: Object2D) => {
-    const initialLength = obj.kind === "ramp" ? obj.runMm : obj.lengthMm;
-    transformStateRef.current = {
-      id: obj.id,
-      initialLengthMm: initialLength,
-      initialWidthMm: obj.widthMm,
-      last: { xMm: obj.xMm, yMm: obj.yMm, lengthMm: initialLength, widthMm: obj.widthMm },
-    };
-  };
-
-  const handleObjectTransform = (evt: any, obj: Object2D) => {
-    if (!camera) return;
-    if (obj.locked) return;
-    const node = evt.target;
-    const current = transformStateRef.current;
-    const initialState =
-      current && current.id === obj.id
-        ? current
-        : {
-            id: obj.id,
-            initialLengthMm: obj.kind === "ramp" ? obj.runMm : obj.lengthMm,
-            initialWidthMm: obj.widthMm,
-            last: {
-              xMm: obj.xMm,
-              yMm: obj.yMm,
-              lengthMm: obj.kind === "ramp" ? obj.runMm : obj.lengthMm,
-              widthMm: obj.widthMm,
-            },
-          };
-    const snapStep = snapToGrid ? snapIncrementMm : MIN_INCREMENT_MM;
-
-    const rawScaleX = Math.max(node.scaleX(), 0);
-    const rawScaleY = Math.max(node.scaleY(), 0);
-    const unclampedLength = initialState.initialLengthMm * rawScaleX;
-    const unclampedWidth = initialState.initialWidthMm * rawScaleY;
-    const clampedLength = Math.max(MIN_OBJECT_SIZE_MM, unclampedLength);
-    const clampedWidth = Math.max(MIN_OBJECT_SIZE_MM, unclampedWidth);
-    const snappedLength = snapMm(clampedLength, snapStep);
-    const snappedWidth = snapMm(clampedWidth, snapStep);
-
-    const absolute = node.getAbsolutePosition();
-    const proposedCentre = screenToWorldMm(absolute, camera);
-
-    const nextObj =
-      obj.kind === "ramp"
-        ? ({ ...obj, lengthMm: snappedLength, runMm: snappedLength, widthMm: snappedWidth } as Object2D)
-        : ({ ...obj, lengthMm: snappedLength, widthMm: snappedWidth } as Object2D);
-
-    const snappedCentre = getObjectSnap(nextObj, proposedCentre);
-
-    const snappedScaleX = snappedLength / initialState.initialLengthMm;
-    const snappedScaleY = snappedWidth / initialState.initialWidthMm;
-    node.scaleX(snappedScaleX);
-    node.scaleY(snappedScaleY);
-
-    const snappedStage = worldToScreen(snappedCentre, camera);
-    node.setAbsolutePosition(snappedStage);
-
-    transformStateRef.current = {
-      ...initialState,
-      last: { xMm: snappedCentre.xMm, yMm: snappedCentre.yMm, lengthMm: snappedLength, widthMm: snappedWidth },
-    };
-  };
-
-  const handleObjectTransformEnd = (evt: any, obj: Object2D) => {
-    if (!camera) return;
-    if (obj.locked) return;
-    const state = transformStateRef.current;
-    const node = evt.target;
-    const lastState =
-      state && state.id === obj.id
-        ? state.last
-        : {
-            xMm: obj.xMm,
-            yMm: obj.yMm,
-            lengthMm: obj.kind === "ramp" ? obj.runMm : obj.lengthMm,
-            widthMm: obj.widthMm,
-          };
-    const patch: Partial<Object2D> =
-      obj.kind === "ramp"
-        ? { xMm: lastState.xMm, yMm: lastState.yMm, lengthMm: lastState.lengthMm, runMm: lastState.lengthMm, widthMm: lastState.widthMm }
-        : { xMm: lastState.xMm, yMm: lastState.yMm, lengthMm: lastState.lengthMm, widthMm: lastState.widthMm };
-    onUpdateObject(obj.id, patch, true);
-    setSnapGuide({ snappedPoint: null });
-
-    node.scaleX(1);
-    node.scaleY(1);
-    const snappedStage = worldToScreen({ xMm: lastState.xMm, yMm: lastState.yMm }, camera);
-    node.setAbsolutePosition(snappedStage);
-    transformStateRef.current = null;
-  };
-
   const hudLabel = useMemo(() => {
     if (!pointer || (activeTool !== "ramp" && activeTool !== "landing")) return null;
     const label = activeTool === "ramp" ? "Click to place Ramp (Esc to cancel)" : "Click to place Landing (Esc to cancel)";
@@ -744,16 +643,6 @@ export default function Canvas2D({
         onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
         onDragStart: handleObjectDragStart,
         onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
-        onTransformStart: () => handleObjectTransformStart(obj),
-        onTransform: (evt: any) => handleObjectTransform(evt, obj),
-        onTransformEnd: (evt: any) => handleObjectTransformEnd(evt, obj),
-        nodeRef: (node: any) => {
-          if (node) {
-            objectRefs.current[obj.id] = node;
-          } else {
-            delete objectRefs.current[obj.id];
-          }
-        },
         ...hoverHandlers,
       };
       return <ShapeRamp2D {...rampProps} />;
@@ -769,48 +658,10 @@ export default function Canvas2D({
       onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
       onDragStart: handleObjectDragStart,
       onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
-      onTransformStart: () => handleObjectTransformStart(obj),
-      onTransform: (evt: any) => handleObjectTransform(evt, obj),
-      onTransformEnd: (evt: any) => handleObjectTransformEnd(evt, obj),
-      nodeRef: (node: any) => {
-        if (node) {
-          objectRefs.current[obj.id] = node;
-        } else {
-          delete objectRefs.current[obj.id];
-        }
-      },
       ...hoverHandlers,
     };
     return <ShapeLanding2D {...landingProps} />;
   });
-
-  useEffect(() => {
-    const transformer = transformerRef.current;
-    if (!transformer) return;
-    const selected = selectedId ? objects.find((obj) => obj.id === selectedId) ?? null : null;
-    const node = selected && !selected.locked ? objectRefs.current[selected.id] ?? null : null;
-    if (node) {
-      transformer.nodes([node]);
-      transformer.getLayer()?.batchDraw();
-      const anchors = transformer.getAnchors?.() ?? [];
-      anchors.forEach((anchor: any) => {
-        anchor.off(".hover");
-        anchor.on("mouseenter.hover", () => {
-          anchor.fill("#bfdbfe");
-          anchor.stroke("#0ea5e9");
-          transformer.getLayer()?.batchDraw();
-        });
-        anchor.on("mouseleave.hover", () => {
-          anchor.fill("#e2e8f0");
-          anchor.stroke("#1f2937");
-          transformer.getLayer()?.batchDraw();
-        });
-      });
-    } else {
-      transformer.nodes([]);
-      transformer.getLayer()?.batchDraw();
-    }
-  }, [objects, selectedId]);
 
   return (
     <div className="ob-canvasHost" ref={containerRef} data-tool={activeTool}>
@@ -837,18 +688,6 @@ export default function Canvas2D({
 
             <Layer>
               <Group {...worldGroupProps}>{objectNodes}</Group>
-              <Transformer
-                ref={transformerRef}
-                enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
-                rotateEnabled={false}
-                flipEnabled={false}
-                anchorSize={10}
-                anchorStroke="#1f2937"
-                anchorFill="#e2e8f0"
-                anchorCornerRadius={3}
-                borderStroke="#2563eb"
-                borderStrokeWidth={1.5}
-              />
             </Layer>
 
             <Layer listening={false}>

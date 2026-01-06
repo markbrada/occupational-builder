@@ -170,9 +170,6 @@ Parameters:
 
 ## Changelog
 
-### v0.6.0
-- Added Konva transformer handles to ramps and platforms for corner-based resizing with snap-aware, mm-accurate dimensions and minimum sizing, while keeping ramp wings aligned to their bodies.
-
 ### v0.5.0
 - Split snapping controls into separate grid/object toggles with configurable 1/10/100/1000mm increments plus status readouts.
 - Updated snapping logic and autosave to honour the selected increment, prioritise object magnetism, and keep grid visuals aligned for large steps.
