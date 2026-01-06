@@ -1,4 +1,6 @@
+import { forwardRef, type ForwardedRef } from "react";
 import { Group, Rect } from "react-konva";
+import type Konva from "konva";
 import { LandingObj, Tool } from "../../model/types";
 import { mmToPx } from "../../model/units";
 
@@ -17,20 +19,23 @@ type Props = {
   onDragEnd?: (evt: any) => void;
 };
 
-export default function ShapeLanding2D({
-  obj,
-  selected,
-  hover,
-  activeTool,
-  draggable,
-  dragBoundFunc,
-  ghost = false,
-  onPointerDown,
-  onMouseEnter,
-  onMouseLeave,
-  onDragStart,
-  onDragEnd,
-}: Props) {
+function ShapeLanding2D(
+  {
+    obj,
+    selected,
+    hover,
+    activeTool,
+    draggable,
+    dragBoundFunc,
+    ghost = false,
+    onPointerDown,
+    onMouseEnter,
+    onMouseLeave,
+    onDragStart,
+    onDragEnd,
+  }: Props,
+  ref: ForwardedRef<Konva.Group>,
+) {
   const widthPx = mmToPx(obj.lengthMm);
   const heightPx = mmToPx(obj.widthMm);
   const fill = ghost ? "rgba(59,130,246,0.25)" : "#e5e7eb";
@@ -48,6 +53,7 @@ export default function ShapeLanding2D({
 
   return (
     <Group
+      ref={ref}
       x={mmToPx(obj.xMm)}
       y={mmToPx(obj.yMm)}
       draggable={draggable && !ghost}
@@ -73,3 +79,5 @@ export default function ShapeLanding2D({
     </Group>
   );
 }
+
+export default forwardRef<Konva.Group, Props>(ShapeLanding2D);
