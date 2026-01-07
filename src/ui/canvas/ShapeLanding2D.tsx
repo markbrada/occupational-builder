@@ -1,18 +1,15 @@
 import { Group, Rect } from "react-konva";
-import { LandingObj, MeasurementKey, SnapIncrementMm, Tool } from "../../model/types";
+import { LandingObj, Tool } from "../../model/types";
 import { mmToPx } from "../../model/units";
-import DimensionAnnotation from "./DimensionAnnotation";
 
 type Props = {
   obj: LandingObj;
   selected: boolean;
   hover: boolean;
   activeTool: Tool;
-  snapIncrementMm: SnapIncrementMm;
   draggable: boolean;
   dragBoundFunc?: (pos: any) => any;
   ghost?: boolean;
-  onMeasurementOffsetChange?: (key: MeasurementKey, offsetMm: number) => void;
   onPointerDown?: (evt: any) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -25,11 +22,9 @@ export default function ShapeLanding2D({
   selected,
   hover,
   activeTool,
-  snapIncrementMm,
   draggable,
   dragBoundFunc,
   ghost = false,
-  onMeasurementOffsetChange,
   onPointerDown,
   onMouseEnter,
   onMouseLeave,
@@ -50,10 +45,6 @@ export default function ShapeLanding2D({
   const opacity = ghost ? 0.35 : 1;
   const rectX = -widthPx / 2;
   const rectY = -heightPx / 2;
-  const halfLengthMm = obj.lengthMm / 2;
-  const halfWidthMm = obj.widthMm / 2;
-  const canDragOffsets = selected && !obj.locked;
-  const label = (value: number) => `${value}mm`;
 
   return (
     <Group
@@ -79,54 +70,6 @@ export default function ShapeLanding2D({
         strokeWidth={selected ? 3 : 2}
         opacity={opacity}
       />
-      {obj.measurements.L1 && (
-        <DimensionAnnotation
-          startMm={{ xMm: -halfLengthMm, yMm: -halfWidthMm }}
-          endMm={{ xMm: halfLengthMm, yMm: -halfWidthMm }}
-          normalMm={{ xMm: 0, yMm: -1 }}
-          offsetMm={obj.measurementOffsets.L1}
-          label={label(obj.lengthMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("L1", offsetMm) : undefined}
-        />
-      )}
-      {obj.measurements.L2 && (
-        <DimensionAnnotation
-          startMm={{ xMm: -halfLengthMm, yMm: halfWidthMm }}
-          endMm={{ xMm: halfLengthMm, yMm: halfWidthMm }}
-          normalMm={{ xMm: 0, yMm: 1 }}
-          offsetMm={obj.measurementOffsets.L2}
-          label={label(obj.lengthMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("L2", offsetMm) : undefined}
-        />
-      )}
-      {obj.measurements.W1 && (
-        <DimensionAnnotation
-          startMm={{ xMm: -halfLengthMm, yMm: -halfWidthMm }}
-          endMm={{ xMm: -halfLengthMm, yMm: halfWidthMm }}
-          normalMm={{ xMm: -1, yMm: 0 }}
-          offsetMm={obj.measurementOffsets.W1}
-          label={label(obj.widthMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("W1", offsetMm) : undefined}
-        />
-      )}
-      {obj.measurements.W2 && (
-        <DimensionAnnotation
-          startMm={{ xMm: halfLengthMm, yMm: -halfWidthMm }}
-          endMm={{ xMm: halfLengthMm, yMm: halfWidthMm }}
-          normalMm={{ xMm: 1, yMm: 0 }}
-          offsetMm={obj.measurementOffsets.W2}
-          label={label(obj.widthMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("W2", offsetMm) : undefined}
-        />
-      )}
     </Group>
   );
 }
