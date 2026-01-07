@@ -1,19 +1,16 @@
 import { Group, Line, Arrow } from "react-konva";
 import { getRampOutlinePointsMm, getRampSeamLinesMm } from "../../model/geometry";
-import { MeasurementKey, RampObj, SnapIncrementMm, Tool } from "../../model/types";
+import { RampObj, Tool } from "../../model/types";
 import { mmToPx } from "../../model/units";
-import DimensionAnnotation from "./DimensionAnnotation";
 
 type Props = {
   obj: RampObj;
   selected: boolean;
   hover: boolean;
   activeTool: Tool;
-  snapIncrementMm: SnapIncrementMm;
   draggable: boolean;
   dragBoundFunc?: (pos: any) => any;
   ghost?: boolean;
-  onMeasurementOffsetChange?: (key: MeasurementKey, offsetMm: number) => void;
   onPointerDown?: (evt: any) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -26,11 +23,9 @@ export default function ShapeRamp2D({
   selected,
   hover,
   activeTool,
-  snapIncrementMm,
   draggable,
   dragBoundFunc,
   ghost = false,
-  onMeasurementOffsetChange,
   onPointerDown,
   onMouseEnter,
   onMouseLeave,
@@ -62,10 +57,6 @@ export default function ShapeRamp2D({
   const lengthPx = mmToPx(obj.runMm);
   const arrowStartX = -lengthPx / 2 + lengthPx * 0.1;
   const arrowEndX = lengthPx / 2 - lengthPx * 0.1;
-  const halfLengthMm = obj.runMm / 2;
-  const halfWidthMm = obj.widthMm / 2;
-  const canDragOffsets = selected && !obj.locked;
-  const label = (value: number) => `${value}mm`;
 
   return (
     <Group
@@ -102,78 +93,6 @@ export default function ShapeRamp2D({
           fill={stroke}
           strokeWidth={strokeWidth}
           opacity={opacity}
-        />
-      )}
-      {obj.measurements.L1 && (
-        <DimensionAnnotation
-          startMm={{ xMm: -halfLengthMm, yMm: -halfWidthMm }}
-          endMm={{ xMm: halfLengthMm, yMm: -halfWidthMm }}
-          normalMm={{ xMm: 0, yMm: -1 }}
-          offsetMm={obj.measurementOffsets.L1}
-          label={label(obj.runMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("L1", offsetMm) : undefined}
-        />
-      )}
-      {obj.measurements.L2 && (
-        <DimensionAnnotation
-          startMm={{ xMm: -halfLengthMm, yMm: halfWidthMm }}
-          endMm={{ xMm: halfLengthMm, yMm: halfWidthMm }}
-          normalMm={{ xMm: 0, yMm: 1 }}
-          offsetMm={obj.measurementOffsets.L2}
-          label={label(obj.runMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("L2", offsetMm) : undefined}
-        />
-      )}
-      {obj.measurements.W1 && (
-        <DimensionAnnotation
-          startMm={{ xMm: -halfLengthMm, yMm: -halfWidthMm }}
-          endMm={{ xMm: -halfLengthMm, yMm: halfWidthMm }}
-          normalMm={{ xMm: -1, yMm: 0 }}
-          offsetMm={obj.measurementOffsets.W1}
-          label={label(obj.widthMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("W1", offsetMm) : undefined}
-        />
-      )}
-      {obj.measurements.W2 && (
-        <DimensionAnnotation
-          startMm={{ xMm: halfLengthMm, yMm: -halfWidthMm }}
-          endMm={{ xMm: halfLengthMm, yMm: halfWidthMm }}
-          normalMm={{ xMm: 1, yMm: 0 }}
-          offsetMm={obj.measurementOffsets.W2}
-          label={label(obj.widthMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("W2", offsetMm) : undefined}
-        />
-      )}
-      {obj.hasLeftWing && obj.measurements.WL && obj.leftWingSizeMm > 0 && (
-        <DimensionAnnotation
-          startMm={{ xMm: halfLengthMm, yMm: -halfWidthMm }}
-          endMm={{ xMm: halfLengthMm, yMm: -halfWidthMm - obj.leftWingSizeMm }}
-          normalMm={{ xMm: -1, yMm: 0 }}
-          offsetMm={obj.measurementOffsets.WL}
-          label={label(obj.leftWingSizeMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("WL", offsetMm) : undefined}
-        />
-      )}
-      {obj.hasRightWing && obj.measurements.WR && obj.rightWingSizeMm > 0 && (
-        <DimensionAnnotation
-          startMm={{ xMm: halfLengthMm, yMm: halfWidthMm }}
-          endMm={{ xMm: halfLengthMm, yMm: halfWidthMm + obj.rightWingSizeMm }}
-          normalMm={{ xMm: 1, yMm: 0 }}
-          offsetMm={obj.measurementOffsets.WR}
-          label={label(obj.rightWingSizeMm)}
-          rotationDeg={obj.rotationDeg}
-          snapIncrementMm={snapIncrementMm}
-          onOffsetChange={canDragOffsets ? (offsetMm) => onMeasurementOffsetChange?.("WR", offsetMm) : undefined}
         />
       )}
     </Group>
