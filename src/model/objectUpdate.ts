@@ -1,4 +1,4 @@
-import { BaseObj, DimensionObj, LandingObj, MeasurementKey, MeasurementState, Object2D, RampObj, Snapshot } from "./types";
+import { BaseObj, LandingObj, MeasurementKey, MeasurementState, Object2D, RampObj, Snapshot } from "./types";
 
 export type ObjectPatch = Partial<Object2D> | Partial<BaseObj>;
 
@@ -15,7 +15,7 @@ export const normaliseDeg = (deg: number): number => {
   return ((rounded % 360) + 360) % 360;
 };
 
-const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "WL", "WR", "H", "E"];
+const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "H", "E"];
 
 const mergeMeasurements = (current: MeasurementState, patch?: Partial<MeasurementState>): MeasurementState => {
   if (!patch) return current;
@@ -25,24 +25,7 @@ const mergeMeasurements = (current: MeasurementState, patch?: Partial<Measuremen
   );
 };
 
-const mergeMeasurementOffsets = (
-  current: Record<MeasurementKey, number>,
-  patch?: Partial<Record<MeasurementKey, number>>,
-): Record<MeasurementKey, number> => {
-  if (!patch) return current;
-  return measurementKeys.reduce<Record<MeasurementKey, number>>(
-    (acc, key) => ({ ...acc, [key]: patch[key] ?? current[key] }),
-    { ...current },
-  );
-};
-
-const normaliseMeasurementOffsets = (value: Record<MeasurementKey, number>): Record<MeasurementKey, number> =>
-  measurementKeys.reduce<Record<MeasurementKey, number>>(
-    (acc, key) => ({ ...acc, [key]: clampInt(value[key], 0) }),
-    {} as Record<MeasurementKey, number>,
-  );
-
-const normaliseBaseObject = (obj: RampObj | LandingObj): RampObj | LandingObj => ({
+const normaliseBaseObject = (obj: Object2D): Object2D => ({
   ...obj,
   lengthMm: clampInt(obj.lengthMm, 0),
   widthMm: clampInt(obj.widthMm, 0),
@@ -51,17 +34,6 @@ const normaliseBaseObject = (obj: RampObj | LandingObj): RampObj | LandingObj =>
   rotationDeg: normaliseDeg(obj.rotationDeg),
   xMm: roundMm(obj.xMm),
   yMm: roundMm(obj.yMm),
-  measurementOffsets: normaliseMeasurementOffsets(obj.measurementOffsets),
-});
-
-const normaliseDimensionObject = (obj: DimensionObj): DimensionObj => ({
-  ...obj,
-  xMm: roundMm(obj.xMm),
-  yMm: roundMm(obj.yMm),
-  rotationDeg: normaliseDeg(obj.rotationDeg),
-  offsetMm: clampInt(obj.offsetMm, 0),
-  startMm: { xMm: roundMm(obj.startMm.xMm), yMm: roundMm(obj.startMm.yMm) },
-  endMm: { xMm: roundMm(obj.endMm.xMm), yMm: roundMm(obj.endMm.yMm) },
 });
 
 const normaliseRampObject = (obj: RampObj): RampObj => {
@@ -81,27 +53,7 @@ const normaliseLandingObject = (obj: LandingObj): LandingObj => normaliseBaseObj
 const measurementsEqual = (a: MeasurementState, b: MeasurementState): boolean =>
   measurementKeys.every((key) => a[key] === b[key]);
 
-const measurementOffsetsEqual = (a: Record<MeasurementKey, number>, b: Record<MeasurementKey, number>): boolean =>
-  measurementKeys.every((key) => a[key] === b[key]);
-
 const objectsEqual = (a: Object2D, b: Object2D): boolean => {
-  if (a.kind === "dimension" && b.kind === "dimension") {
-    return (
-      a.id === b.id &&
-      a.xMm === b.xMm &&
-      a.yMm === b.yMm &&
-      a.rotationDeg === b.rotationDeg &&
-      a.locked === b.locked &&
-      a.offsetMm === b.offsetMm &&
-      a.startMm.xMm === b.startMm.xMm &&
-      a.startMm.yMm === b.startMm.yMm &&
-      a.endMm.xMm === b.endMm.xMm &&
-      a.endMm.yMm === b.endMm.yMm
-    );
-  }
-  if (a.kind === "dimension" || b.kind === "dimension") {
-    return false;
-  }
   const baseEqual =
     a.id === b.id &&
     a.kind === b.kind &&
@@ -113,8 +65,7 @@ const objectsEqual = (a: Object2D, b: Object2D): boolean => {
     a.elevationMm === b.elevationMm &&
     a.rotationDeg === b.rotationDeg &&
     a.locked === b.locked &&
-    measurementsEqual(a.measurements, b.measurements) &&
-    measurementOffsetsEqual(a.measurementOffsets, b.measurementOffsets);
+    measurementsEqual(a.measurements, b.measurements);
 
   if (!baseEqual) return false;
 
@@ -133,10 +84,9 @@ const objectsEqual = (a: Object2D, b: Object2D): boolean => {
 };
 
 const applyPatchToRamp = (obj: RampObj, patch: ObjectPatch): RampObj => {
-  const { kind: _ignoredKind, measurements, measurementOffsets, ...rest } = patch as Partial<RampObj>;
+  const { kind: _ignoredKind, measurements, ...rest } = patch as Partial<RampObj>;
   const mergedMeasurements = mergeMeasurements(obj.measurements, measurements);
-  const mergedOffsets = mergeMeasurementOffsets(obj.measurementOffsets, measurementOffsets);
-  const candidate: RampObj = { ...obj, ...rest, measurements: mergedMeasurements, measurementOffsets: mergedOffsets, kind: "ramp" };
+  const candidate: RampObj = { ...obj, ...rest, measurements: mergedMeasurements, kind: "ramp" };
   return normaliseRampObject(candidate);
 };
 
@@ -150,27 +100,11 @@ const applyPatchToLanding = (obj: LandingObj, patch: ObjectPatch): LandingObj =>
     hasRightWing: _ignoreRightWing,
     rightWingSizeMm: _ignoreRightWingSize,
     measurements,
-    measurementOffsets,
     ...rest
   } = patch as Partial<RampObj>;
   const mergedMeasurements = mergeMeasurements(obj.measurements, measurements);
-  const mergedOffsets = mergeMeasurementOffsets(obj.measurementOffsets, measurementOffsets);
-  const candidate: LandingObj = {
-    ...obj,
-    ...rest,
-    measurements: mergedMeasurements,
-    measurementOffsets: mergedOffsets,
-    kind: "landing",
-  };
+  const candidate: LandingObj = { ...obj, ...rest, measurements: mergedMeasurements, kind: "landing" };
   return normaliseLandingObject(candidate);
-};
-
-const applyPatchToDimension = (obj: DimensionObj, patch: ObjectPatch): DimensionObj => {
-  const { kind: _ignoredKind, measurements: _ignoreMeasurements, measurementOffsets: _ignoreOffsets, ...rest } = patch as Partial<
-    DimensionObj & BaseObj
-  >;
-  const candidate: DimensionObj = { ...obj, ...rest, kind: "dimension" };
-  return normaliseDimensionObject(candidate);
 };
 
 export const updateObject = (snapshot: Snapshot, id: string, patch: ObjectPatch): Snapshot => {
@@ -178,12 +112,7 @@ export const updateObject = (snapshot: Snapshot, id: string, patch: ObjectPatch)
   if (index === -1) return snapshot;
 
   const target = snapshot.objects[index];
-  const updated =
-    target.kind === "ramp"
-      ? applyPatchToRamp(target, patch)
-      : target.kind === "landing"
-        ? applyPatchToLanding(target, patch)
-        : applyPatchToDimension(target, patch);
+  const updated = target.kind === "ramp" ? applyPatchToRamp(target, patch) : applyPatchToLanding(target, patch);
   if (objectsEqual(target, updated)) return snapshot;
 
   const nextObjects = [...snapshot.objects];

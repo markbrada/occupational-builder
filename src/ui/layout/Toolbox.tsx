@@ -39,7 +39,6 @@ export default function Toolbox({
         <div className="toolbox__row">
           {renderButton("ramp", "Ramp")}
           {renderButton("landing", "Landing (Platform)")}
-          {renderButton("dimension", "Dimension")}
           {renderButton("delete", "Delete")}
         </div>
         <div className="toolbox__stackedControls">
@@ -61,7 +60,7 @@ export default function Toolbox({
             </select>
           </label>
         </div>
-        <div className="toolbox__hint">Tip: Click to select. Shortcuts: R, P (Landing), M (Dimension), D, Esc, Backspace, arrows.</div>
+        <div className="toolbox__hint">Tip: Click to select. Shortcuts: R, P (Landing), D, Esc, Backspace, arrows.</div>
       </div>
     </div>
   );
