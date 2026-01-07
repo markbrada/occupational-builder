@@ -19,11 +19,15 @@ const fieldConfig: { key: FieldKey; label: string }[] = [
   { key: "rotationDeg", label: "Rotate (degrees)" },
 ];
 
+const dimensionFieldConfig: { key: FieldKey; label: string }[] = [{ key: "rotationDeg", label: "Rotate (degrees)" }];
+
 const measurementConfig: { key: MeasurementKey; label: string; description: string }[] = [
   { key: "L1", label: "L1", description: "Length (Side 1)" },
   { key: "L2", label: "L2", description: "Length (Side 2)" },
   { key: "W1", label: "W1", description: "Width (Side 1)" },
   { key: "W2", label: "W2", description: "Width (Side 2)" },
+  { key: "WL", label: "WL", description: "Left Wing Width" },
+  { key: "WR", label: "WR", description: "Right Wing Width" },
   { key: "H", label: "H", description: "Height" },
   { key: "E", label: "E", description: "Elevation" },
 ];
@@ -42,10 +46,23 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
   });
   const [leftWingSize, setLeftWingSize] = useState<string>("");
   const [rightWingSize, setRightWingSize] = useState<string>("");
+  const [measurementsOpen, setMeasurementsOpen] = useState(false);
 
   useEffect(() => {
     if (!selected) {
       setFieldValues({ lengthMm: "", widthMm: "", heightMm: "", elevationMm: "", rotationDeg: "" });
+      setLeftWingSize("");
+      setRightWingSize("");
+      return;
+    }
+    if (selected.kind === "dimension") {
+      setFieldValues({
+        lengthMm: "",
+        widthMm: "",
+        heightMm: "",
+        elevationMm: "",
+        rotationDeg: toDisplayValue(selected.rotationDeg),
+      });
       setLeftWingSize("");
       setRightWingSize("");
       return;
@@ -66,14 +83,24 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
     }
   }, [
     selected?.id,
-    selected?.lengthMm,
-    selected?.widthMm,
-    selected?.heightMm,
-    selected?.elevationMm,
+    selected?.kind,
     selected?.rotationDeg,
+    selected && selected.kind !== "dimension" ? selected.lengthMm : null,
+    selected && selected.kind !== "dimension" ? selected.widthMm : null,
+    selected && selected.kind !== "dimension" ? selected.heightMm : null,
+    selected && selected.kind !== "dimension" ? selected.elevationMm : null,
     selected && selected.kind === "ramp" ? selected.leftWingSizeMm : null,
     selected && selected.kind === "ramp" ? selected.rightWingSizeMm : null,
   ]);
+
+  useEffect(() => {
+    setMeasurementsOpen(false);
+  }, [selected?.id]);
+
+  const visibleFieldConfig = useMemo(() => {
+    if (!selected) return fieldConfig;
+    return selected.kind === "dimension" ? dimensionFieldConfig : fieldConfig;
+  }, [selected]);
 
   const handleChange = (key: FieldKey) => (event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = sanitiseNumericInput(event.target.value);
@@ -85,7 +112,14 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
     const raw = fieldValues[key];
     const parsed = raw === "" ? NaN : parseInt(raw, 10);
     if (Number.isNaN(parsed)) {
-      setFieldValues((current) => ({ ...current, [key]: toDisplayValue(selected[key]) }));
+      const fallback =
+        selected.kind === "dimension" ? (key === "rotationDeg" ? selected.rotationDeg : undefined) : selected[key];
+      setFieldValues((current) => ({ ...current, [key]: toDisplayValue(fallback) }));
+      return;
+    }
+    if (selected.kind === "dimension") {
+      if (key !== "rotationDeg") return;
+      onUpdateObject(selected.id, { rotationDeg: parsed } as ObjectPatch, true);
       return;
     }
     const patch: ObjectPatch =
@@ -170,13 +204,23 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
 
   const kindLabel = useMemo(() => {
     if (!selected) return "";
-    return selected.kind === "ramp" ? "Ramp" : "Box / Landing";
+    if (selected.kind === "ramp") return "Ramp";
+    if (selected.kind === "landing") return "Box / Landing";
+    return "Manual Dimension";
   }, [selected]);
 
   const rampSlope = useMemo(() => {
     if (!selected || selected.kind !== "ramp") return null;
     return computeRampSlope(selected.lengthMm, selected.heightMm);
-  }, [selected?.kind, selected?.lengthMm, selected?.heightMm]);
+  }, [selected?.kind, selected && selected.kind === "ramp" ? selected.lengthMm : null, selected && selected.kind === "ramp" ? selected.heightMm : null]);
+
+  const visibleMeasurementConfig = useMemo(() => {
+    if (!selected || selected.kind === "dimension") return [];
+    if (selected.kind === "landing") {
+      return measurementConfig.filter((option) => option.key !== "WL" && option.key !== "WR");
+    }
+    return measurementConfig;
+  }, [selected]);
 
   if (!selected) {
     return (
@@ -195,7 +239,7 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
       <div className="inspector__objectTitle">{kindLabel}</div>
       <div className="inspector__divider" />
       <div className="inspector__fields">
-        {fieldConfig.map(({ key, label }) => (
+        {visibleFieldConfig.map(({ key, label }) => (
           <label key={key} className="inspector__field">
             <span className="inspector__label">{label}</span>
             <input
@@ -263,34 +307,48 @@ export default function Inspector({ selected, onUpdateObject, onRotateSelected }
           </div>
         )}
       </div>
-      <div className="inspector__section">
-        <div className="inspector__sectionHeader">
-          <span className="inspector__label">Measurements</span>
+      {selected.kind !== "dimension" && (
+        <div className="inspector__section">
+          <div className="inspector__sectionHeader">
+            <span className="inspector__label">Quick Measurements</span>
+            <button
+              type="button"
+              className="inspector__sectionToggle"
+              onClick={() => setMeasurementsOpen((current) => !current)}
+              aria-expanded={measurementsOpen}
+            >
+              {measurementsOpen ? "Hide" : "Show"}
+            </button>
+          </div>
+          {measurementsOpen && (
+            <>
+              <div className="inspector__checkboxGrid">
+                {visibleMeasurementConfig.map(({ key, label, description }) => {
+                  const disabled = locked;
+                  return (
+                    <label key={key} className={`inspector__checkboxRow ${disabled ? "is-disabled" : ""}`}>
+                      <input
+                        type="checkbox"
+                        className="inspector__checkbox"
+                        checked={Boolean(selected.measurements?.[key])}
+                        onChange={handleToggleMeasurement(key)}
+                        disabled={disabled}
+                      />
+                      <div className="inspector__checkboxContent">
+                        <span className="inspector__checkboxLabel">{label}</span>
+                        <span className="inspector__checkboxDescription">{description}</span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              {selected.elevationMm === 0 && (
+                <div className="inspector__helperText">Elevation dimension appears only when Elevation &gt; 0.</div>
+              )}
+            </>
+          )}
         </div>
-        <div className="inspector__checkboxGrid">
-          {measurementConfig.map(({ key, label, description }) => {
-            const disabled = locked || (key === "E" && selected.elevationMm === 0);
-            return (
-              <label key={key} className={`inspector__checkboxRow ${disabled ? "is-disabled" : ""}`}>
-                <input
-                  type="checkbox"
-                  className="inspector__checkbox"
-                  checked={Boolean(selected.measurements?.[key])}
-                  onChange={handleToggleMeasurement(key)}
-                  disabled={disabled}
-                />
-                <div className="inspector__checkboxContent">
-                  <span className="inspector__checkboxLabel">{label}</span>
-                  <span className="inspector__checkboxDescription">{description}</span>
-                </div>
-              </label>
-            );
-          })}
-        </div>
-        {selected.elevationMm === 0 && (
-          <div className="inspector__helperText">Elevation dimension appears only when Elevation &gt; 0.</div>
-        )}
-      </div>
+      )}
       {selected.kind === "ramp" && (
         <div className="inspector__section inspector__section--ramp">
           <div className="inspector__sectionHeader">
