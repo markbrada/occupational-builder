@@ -1,16 +1,26 @@
-import { LandingObj, MeasurementKey, MeasurementState, RampObj } from "./types";
+import { DimensionObj, LandingObj, MeasurementKey, MeasurementState, RampObj } from "./types";
 
 export const makeId = (): string => `obj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
-const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "H", "E"];
+const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "WL", "WR", "H", "E"];
+export const DEFAULT_MEASUREMENT_OFFSET_MM = 300;
 
-const defaultMeasurements = (elevationMm: number): MeasurementState =>
+const defaultMeasurements = (_elevationMm: number): MeasurementState =>
   measurementKeys.reduce<MeasurementState>(
     (acc, key) => ({
       ...acc,
-      [key]: key === "E" ? elevationMm > 0 : true,
+      [key]: false,
     }),
     {} as MeasurementState,
+  );
+
+export const defaultMeasurementOffsets = (): Record<MeasurementKey, number> =>
+  measurementKeys.reduce<Record<MeasurementKey, number>>(
+    (acc, key) => ({
+      ...acc,
+      [key]: DEFAULT_MEASUREMENT_OFFSET_MM,
+    }),
+    {} as Record<MeasurementKey, number>,
   );
 
 export const DEFAULT_RAMP_RUN_MM = 1800;
@@ -29,6 +39,7 @@ export const newRampAt = (xMm: number, yMm: number): RampObj => ({
   rotationDeg: 0,
   locked: false,
   measurements: defaultMeasurements(0),
+  measurementOffsets: defaultMeasurementOffsets(),
   runMm: DEFAULT_RAMP_RUN_MM,
   showArrow: true,
   hasLeftWing: false,
@@ -53,4 +64,25 @@ export const newLandingAt = (xMm: number, yMm: number): LandingObj => ({
   rotationDeg: 0,
   locked: false,
   measurements: defaultMeasurements(0),
+  measurementOffsets: defaultMeasurementOffsets(),
 });
+
+const midpoint = (start: { xMm: number; yMm: number }, end: { xMm: number; yMm: number }) => ({
+  xMm: (start.xMm + end.xMm) / 2,
+  yMm: (start.yMm + end.yMm) / 2,
+});
+
+export const newDimensionBetween = (startMm: { xMm: number; yMm: number }, endMm: { xMm: number; yMm: number }): DimensionObj => {
+  const center = midpoint(startMm, endMm);
+  return {
+    id: makeId(),
+    kind: "dimension",
+    xMm: center.xMm,
+    yMm: center.yMm,
+    rotationDeg: 0,
+    locked: false,
+    startMm: { xMm: startMm.xMm - center.xMm, yMm: startMm.yMm - center.yMm },
+    endMm: { xMm: endMm.xMm - center.xMm, yMm: endMm.yMm - center.yMm },
+    offsetMm: DEFAULT_MEASUREMENT_OFFSET_MM,
+  };
+};
