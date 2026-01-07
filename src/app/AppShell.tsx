@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { newDimensionBetween, newLandingAt, newRampAt } from "../model/defaults";
+import { newLandingAt, newRampAt } from "../model/defaults";
 import { updateObject, type ObjectPatch } from "../model/objectUpdate";
 import { Snapshot, SnapIncrementMm, Tool } from "../model/types";
 import { centerFromTopLeftMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../model/geometry";
@@ -16,10 +16,9 @@ import "./styles.css";
 export type EditMode = "2d" | "3d";
 
 const statusText: Record<Tool, string> = {
-  none: "No tool selected. Click any object to select. Shortcuts: R (Ramp), P (Landing), M (Dimension), D, Esc.",
+  none: "No tool selected. Click any object to select. Shortcuts: R (Ramp), P (Landing), D, Esc.",
   ramp: "Ramp: Click on empty canvas to place once. Esc to cancel.",
   landing: "Landing: Click on empty canvas to place once. Esc to cancel.",
-  dimension: "Dimension: Click to set start/end points. Esc to cancel.",
   delete: "Delete: Click an object to delete, or Esc to cancel.",
 };
 
@@ -153,18 +152,6 @@ export default function AppShell() {
     [applySnapshot],
   );
 
-  const handlePlaceDimension = useCallback(
-    (startMm: { xMm: number; yMm: number }, endMm: { xMm: number; yMm: number }) => {
-      const dimension = newDimensionBetween(startMm, endMm);
-      applySnapshot(
-        (present) => ({ ...present, objects: [...present.objects, dimension], selectedId: dimension.id }),
-        true,
-      );
-      setActiveTool("none");
-    },
-    [applySnapshot],
-  );
-
   const handleUpdateObject = useCallback(
     (id: string, patch: ObjectPatch, commitChange = false) => {
       applySnapshot((present) => updateObject(present, id, patch), commitChange);
@@ -237,7 +224,6 @@ export default function AppShell() {
       }
       if (key === "r") setActiveTool("ramp");
       if (key === "p") setActiveTool("landing");
-      if (key === "m") setActiveTool("dimension");
       if (key === "d") setActiveTool("delete");
       if (event.key === "Backspace") {
         if (selectedId) {
@@ -321,7 +307,6 @@ export default function AppShell() {
               onSelect={handleSelect}
               onClearSelection={handleClearSelection}
               onPlaceAt={handlePlaceAt}
-              onPlaceDimension={handlePlaceDimension}
               onUpdateObject={handleUpdateObject}
               onDeleteObject={handleDeleteObject}
               onSetActiveTool={setActiveTool}
