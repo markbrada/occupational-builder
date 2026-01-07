@@ -1,8 +1,8 @@
-export type Tool = "none" | "ramp" | "landing" | "delete";
+export type Tool = "none" | "ramp" | "landing" | "dimension" | "delete";
 
-export type ObjectKind = "ramp" | "landing" | "stairs";
+export type ObjectKind = "ramp" | "landing" | "dimension" | "stairs";
 
-export type MeasurementKey = "L1" | "L2" | "W1" | "W2" | "H" | "E";
+export type MeasurementKey = "L1" | "L2" | "W1" | "W2" | "WL" | "WR" | "H" | "E";
 
 export type MeasurementState = Record<MeasurementKey, boolean>;
 
@@ -18,6 +18,7 @@ export type BaseObj = {
   rotationDeg: number;
   locked: boolean;
   measurements: MeasurementState;
+  measurementOffsets: Record<MeasurementKey, number>;
 };
 
 export type RampObj = BaseObj & {
@@ -34,7 +35,19 @@ export type LandingObj = BaseObj & {
   kind: "landing";
 };
 
-export type Object2D = RampObj | LandingObj;
+export type DimensionObj = {
+  id: string;
+  kind: "dimension";
+  xMm: number;
+  yMm: number;
+  rotationDeg: number;
+  locked: boolean;
+  startMm: { xMm: number; yMm: number };
+  endMm: { xMm: number; yMm: number };
+  offsetMm: number;
+};
+
+export type Object2D = RampObj | LandingObj | DimensionObj;
 
 export type SnapIncrementMm = 1 | 10 | 100 | 1000;
 
