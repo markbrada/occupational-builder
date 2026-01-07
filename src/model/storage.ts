@@ -5,7 +5,6 @@ import {
   DEFAULT_RAMP_HEIGHT_MM,
   DEFAULT_RAMP_RUN_MM,
   DEFAULT_RAMP_WIDTH_MM,
-  defaultMeasurementOffsets,
 } from "./defaults";
 import { LandingObj, MeasurementKey, MeasurementState, Object2D, RampObj, SnapIncrementMm, Tool } from "./types";
 import { DEFAULT_SNAP_INCREMENT_MM, SNAP_INCREMENT_OPTIONS } from "./units";
@@ -41,25 +40,23 @@ const isTool = (value: unknown): value is Tool =>
 
 const isLegacyTool = (value: unknown): value is "platform" => value === "platform";
 
-const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "WL", "WR", "H", "E"];
+const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "H", "E"];
 
 const isSnapIncrement = (value: unknown): value is SnapIncrementMm =>
   typeof value === "number" && SNAP_INCREMENT_OPTIONS.includes(value as SnapIncrementMm);
 
 const normaliseMeasurements = (value: any, elevationMm: number): MeasurementState => {
-  const fallback = (defaultValue: boolean): boolean => (typeof defaultValue === "boolean" ? defaultValue : false);
+  const fallback = (defaultValue: boolean): boolean => (typeof defaultValue === "boolean" ? defaultValue : true);
 
   const legacyEnabled = value?.enabled;
   const legacySides = value?.sides;
 
   const base: MeasurementState = {
-    L1: fallback(legacyEnabled?.L ?? false),
-    L2: fallback(legacyEnabled?.L ?? false),
-    W1: fallback(legacyEnabled?.W ?? false),
-    W2: fallback(legacyEnabled?.W ?? false),
-    WL: false,
-    WR: false,
-    H: fallback(legacyEnabled?.H ?? false),
+    L1: fallback(legacyEnabled?.L ?? true),
+    L2: fallback(legacyEnabled?.L ?? true),
+    W1: fallback(legacyEnabled?.W ?? true),
+    W2: fallback(legacyEnabled?.W ?? true),
+    H: fallback(legacyEnabled?.H ?? true),
     E: fallback(legacyEnabled?.E ?? elevationMm > 0),
   };
 
@@ -83,18 +80,6 @@ const normaliseMeasurements = (value: any, elevationMm: number): MeasurementStat
   return { ...base, ...keyedOverrides };
 };
 
-const normaliseMeasurementOffsets = (value: any): Record<MeasurementKey, number> => {
-  const fallback = defaultMeasurementOffsets();
-  if (!value || typeof value !== "object") return fallback;
-  return measurementKeys.reduce<Record<MeasurementKey, number>>(
-    (acc, key) => ({
-      ...acc,
-      [key]: isNumber(value[key]) ? value[key] : fallback[key],
-    }),
-    {} as Record<MeasurementKey, number>,
-  );
-};
-
 const toRamp = (value: any): RampObj | null => {
   if (!value || value.kind !== "ramp" || !isString(value.id) || !isNumber(value.xMm) || !isNumber(value.yMm)) return null;
 
@@ -114,7 +99,6 @@ const toRamp = (value: any): RampObj | null => {
     rotationDeg: isNumber(value.rotationDeg) ? value.rotationDeg : 0,
     locked: isBoolean(value.locked) ? value.locked : false,
     measurements: normaliseMeasurements(value.measurements, value.elevationMm ?? 0),
-    measurementOffsets: normaliseMeasurementOffsets(value.measurementOffsets),
     runMm: isNumber(value.runMm) ? value.runMm : lengthMm,
     showArrow: isBoolean(value.showArrow) ? value.showArrow : true,
     hasLeftWing: isBoolean(value.hasLeftWing) ? value.hasLeftWing : false,
@@ -154,7 +138,6 @@ const toLanding = (value: any): LandingObj | null => {
     rotationDeg: isNumber(value.rotationDeg) ? value.rotationDeg : 0,
     locked: isBoolean(value.locked) ? value.locked : false,
     measurements: normaliseMeasurements(value.measurements, value.elevationMm ?? 0),
-    measurementOffsets: normaliseMeasurementOffsets(value.measurementOffsets),
   };
 };
 
@@ -167,16 +150,10 @@ const toObject2D = (value: any): Object2D | null => {
 const cloneMeasurements = (value: MeasurementState): MeasurementState =>
   measurementKeys.reduce<MeasurementState>((acc, key) => ({ ...acc, [key]: value[key] }), {} as MeasurementState);
 
-const cloneMeasurementOffsets = (value: Record<MeasurementKey, number>): Record<MeasurementKey, number> =>
-  measurementKeys.reduce<Record<MeasurementKey, number>>(
-    (acc, key) => ({ ...acc, [key]: value[key] }),
-    {} as Record<MeasurementKey, number>,
-  );
-
 const cloneObject = (obj: Object2D): Object2D =>
   obj.kind === "ramp"
-    ? { ...obj, measurements: cloneMeasurements(obj.measurements), measurementOffsets: cloneMeasurementOffsets(obj.measurementOffsets) }
-    : { ...obj, measurements: cloneMeasurements(obj.measurements), measurementOffsets: cloneMeasurementOffsets(obj.measurementOffsets) };
+    ? { ...obj, measurements: cloneMeasurements(obj.measurements) }
+    : { ...obj, measurements: cloneMeasurements(obj.measurements) };
 
 const isPersistedEnvelope = (value: any): value is PersistedEnvelope =>
   value && isNumber(value.schemaVersion) && isNumber(value.savedAt) && value.data;
