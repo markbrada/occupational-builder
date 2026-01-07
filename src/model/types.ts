@@ -2,7 +2,7 @@ export type Tool = "none" | "ramp" | "landing" | "delete";
 
 export type ObjectKind = "ramp" | "landing" | "stairs";
 
-export type MeasurementKey = "L1" | "L2" | "W1" | "W2" | "H" | "E";
+export type MeasurementKey = "L1" | "L2" | "W1" | "W2" | "WL" | "WR" | "H" | "E";
 
 export type MeasurementState = Record<MeasurementKey, boolean>;
 
@@ -18,6 +18,7 @@ export type BaseObj = {
   rotationDeg: number;
   locked: boolean;
   measurements: MeasurementState;
+  measurementOffsets: Record<MeasurementKey, number>;
 };
 
 export type RampObj = BaseObj & {
