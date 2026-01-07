@@ -463,6 +463,22 @@
   justify-content: space-between;
 }
 
+.inspector__sectionToggle {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.inspector__sectionToggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .inspector__placeholder {
   border: 1px dashed #e5e7eb;
   border-radius: 8px;

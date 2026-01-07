@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
-import { BaseObj, LandingObj, Object2D, RampObj, SnapIncrementMm, Tool } from "../../model/types";
-import { newLandingAt, newRampAt } from "../../model/defaults";
+import { BaseObj, DimensionObj, LandingObj, MeasurementKey, Object2D, RampObj, SnapIncrementMm, Tool } from "../../model/types";
+import { newDimensionBetween, newLandingAt, newRampAt } from "../../model/defaults";
 import { centerFromTopLeftMm, getDefaultBoundingBoxMm, getObjectBoundingBoxMm, topLeftFromCenterMm } from "../../model/geometry";
 import { mmToPx, pxToMm, snapMm } from "../../model/units";
 import Grid2D from "./Grid2D";
 import ShapeLanding2D from "./ShapeLanding2D";
 import ShapeRamp2D from "./ShapeRamp2D";
+import ShapeDimension2D from "./ShapeDimension2D";
 
 type CanvasSize = {
   width: number;
@@ -23,6 +24,7 @@ type Canvas2DProps = {
   onSelect: (id: string) => void;
   onClearSelection: () => void;
   onPlaceAt: (tool: Tool, xMm: number, yMm: number) => void;
+  onPlaceDimension: (startMm: PointMm, endMm: PointMm) => void;
   onUpdateObject: (id: string, patch: Partial<Object2D> | Partial<BaseObj>, commit?: boolean) => void;
   onDeleteObject: (id: string) => void;
   onSetActiveTool: (tool: Tool) => void;
@@ -184,11 +186,24 @@ const rotatePointByDeg = (point: PointMm, rotationDeg: number): PointMm => {
   return { xMm: point.xMm * cos - point.yMm * sin, yMm: point.xMm * sin + point.yMm * cos };
 };
 
+const toWorldPoint = (obj: DimensionObj, local: PointMm): PointMm => {
+  const rotated = rotatePointByDeg(local, obj.rotationDeg);
+  return { xMm: obj.xMm + rotated.xMm, yMm: obj.yMm + rotated.yMm };
+};
+
+const toLocalPoint = (obj: DimensionObj, world: PointMm): PointMm => {
+  const delta = { xMm: world.xMm - obj.xMm, yMm: world.yMm - obj.yMm };
+  return rotatePointByDeg(delta, -obj.rotationDeg);
+};
+
 const getBodySize = (obj: Object2D) => {
   if (obj.kind === "ramp") {
     return { lengthMm: obj.runMm, widthMm: obj.widthMm };
   }
-  return { lengthMm: obj.lengthMm, widthMm: obj.widthMm };
+  if (obj.kind === "landing") {
+    return { lengthMm: obj.lengthMm, widthMm: obj.widthMm };
+  }
+  return { lengthMm: 0, widthMm: 0 };
 };
 
 const getHandleLocalPoint = (obj: Object2D, corner: HandleCorner): PointMm => {
@@ -231,6 +246,7 @@ export default function Canvas2D({
   onSelect,
   onClearSelection,
   onPlaceAt,
+  onPlaceDimension,
   onUpdateObject,
   onDeleteObject,
   onSetActiveTool,
@@ -246,6 +262,7 @@ export default function Canvas2D({
   const [spacePanning, setSpacePanning] = useState(false);
   const [resizeState, setResizeState] = useState<ResizeSession | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dimensionStartMm, setDimensionStartMm] = useState<PointMm | null>(null);
   const isPanningRef = useRef(false);
   const lastPanRef = useRef<ScreenPoint | null>(null);
   const resizeCommittedRef = useRef(false);
@@ -292,6 +309,12 @@ export default function Canvas2D({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTool !== "dimension") {
+      setDimensionStartMm(null);
+    }
+  }, [activeTool]);
 
   const hasSize = size.width > 0 && size.height > 0;
 
@@ -426,6 +449,15 @@ export default function Canvas2D({
     };
   }, [activeTool, desiredAnchorMm]);
 
+  const ghostDimension: DimensionObj | null = useMemo(() => {
+    if (!desiredAnchorMm || !dimensionStartMm || activeTool !== "dimension") return null;
+    return {
+      ...newDimensionBetween(dimensionStartMm, desiredAnchorMm),
+      id: "ghost-dimension",
+      locked: true,
+    };
+  }, [activeTool, desiredAnchorMm, dimensionStartMm]);
+
   const handleStagePointerMove = () => {
     if (!stageRef.current || !camera) return;
     const pos = stageRef.current.getPointerPosition();
@@ -508,6 +540,23 @@ export default function Canvas2D({
       const centre = getPlacementCentreFromAnchor(activeTool, clampedAnchor);
       if (!centre) return;
       onPlaceAt(activeTool, centre.xMm, centre.yMm);
+      return;
+    }
+
+    if (activeTool === "dimension" && isStageClick) {
+      const anchor = screenToWorldMm(pos, camera);
+      const clampedAnchor = {
+        xMm: clamp(anchor.xMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
+        yMm: clamp(anchor.yMm, -HALF_WORKSPACE_MM, HALF_WORKSPACE_MM),
+      };
+      const stepMm = snapToGrid ? snapIncrementMm : MIN_INCREMENT_MM;
+      const snappedAnchor = { xMm: snapMm(clampedAnchor.xMm, stepMm), yMm: snapMm(clampedAnchor.yMm, stepMm) };
+      if (!dimensionStartMm) {
+        setDimensionStartMm(snappedAnchor);
+      } else {
+        onPlaceDimension(dimensionStartMm, snappedAnchor);
+        setDimensionStartMm(null);
+      }
       return;
     }
 
@@ -869,10 +918,21 @@ export default function Canvas2D({
   };
 
   const hudLabel = useMemo(() => {
-    if (!pointer || (activeTool !== "ramp" && activeTool !== "landing")) return null;
-    const label = activeTool === "ramp" ? "Click to place Ramp (Esc to cancel)" : "Click to place Landing (Esc to cancel)";
+    if (!pointer || (activeTool !== "ramp" && activeTool !== "landing" && activeTool !== "dimension")) return null;
+    const label =
+      activeTool === "ramp"
+        ? "Click to place Ramp (Esc to cancel)"
+        : activeTool === "landing"
+          ? "Click to place Landing (Esc to cancel)"
+          : dimensionStartMm
+            ? "Click to set Dimension end (Esc to cancel)"
+            : "Click to set Dimension start (Esc to cancel)";
     return { text: label, x: pointer.x + 10, y: pointer.y + 12 };
-  }, [activeTool, pointer]);
+  }, [activeTool, pointer, dimensionStartMm]);
+
+  const handleMeasurementOffsetChange = (id: string, key: MeasurementKey, offsetMm: number) => {
+    onUpdateObject(id, { measurementOffsets: { [key]: offsetMm } } as Partial<Object2D>, true);
+  };
 
   const objectNodes = objects.map((obj) => {
     const isSelected = obj.id === selectedId;
@@ -895,8 +955,10 @@ export default function Canvas2D({
         selected: isSelected,
         hover: isHover,
         activeTool,
+        snapIncrementMm,
         draggable,
         dragBoundFunc,
+        onMeasurementOffsetChange: (key: MeasurementKey, offsetMm: number) => handleMeasurementOffsetChange(obj.id, key, offsetMm),
         onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
         onDragStart: () => handleObjectDragStart(obj),
         onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
@@ -904,14 +966,33 @@ export default function Canvas2D({
       };
       return <ShapeRamp2D {...rampProps} />;
     }
+    if (obj.kind === "dimension") {
+      const dimensionProps = {
+        key: obj.id,
+        obj,
+        selected: isSelected,
+        hover: isHover,
+        activeTool,
+        snapIncrementMm,
+        draggable,
+        dragBoundFunc,
+        onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
+        onDragStart: () => handleObjectDragStart(obj),
+        onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
+        ...hoverHandlers,
+      };
+      return <ShapeDimension2D {...dimensionProps} />;
+    }
     const landingProps = {
       key: obj.id,
       obj,
       selected: isSelected,
       hover: isHover,
       activeTool,
+      snapIncrementMm,
       draggable,
       dragBoundFunc,
+      onMeasurementOffsetChange: (key: MeasurementKey, offsetMm: number) => handleMeasurementOffsetChange(obj.id, key, offsetMm),
       onPointerDown: (evt: any) => handleObjectPointerDown(evt, obj),
       onDragStart: () => handleObjectDragStart(obj),
       onDragEnd: (evt: any) => handleObjectDragEnd(evt, obj),
@@ -921,7 +1002,7 @@ export default function Canvas2D({
   });
 
   const selectedObject = selectedId ? objects.find((obj) => obj.id === selectedId) ?? null : null;
-  const canResize = Boolean(selectedObject && !selectedObject.locked);
+  const canResize = Boolean(selectedObject && !selectedObject.locked && selectedObject.kind !== "dimension");
   const activeSelection = canResize && selectedObject ? selectedObject : null;
   const handlePoints = activeSelection ? getHandleCornerPointsMm(activeSelection) : null;
   const handleVisible = Boolean(handlePoints && !draggingId);
@@ -969,6 +1050,54 @@ export default function Canvas2D({
         })
       : null;
 
+  const selectedDimension = selectedObject && selectedObject.kind === "dimension" ? selectedObject : null;
+  const dimensionHandles =
+    selectedDimension && !selectedDimension.locked && !draggingId
+      ? ([
+          { key: "start", point: toWorldPoint(selectedDimension, selectedDimension.startMm) },
+          { key: "end", point: toWorldPoint(selectedDimension, selectedDimension.endMm) },
+        ] as const).map(({ key, point }) => {
+          const x = mmToPx(point.xMm);
+          const y = mmToPx(point.yMm);
+          const dragBound = (pos: { x: number; y: number }) => {
+            const stepMm = snapToGrid ? snapIncrementMm : MIN_INCREMENT_MM;
+            const snapped = { xMm: snapMm(pxToMm(pos.x), stepMm), yMm: snapMm(pxToMm(pos.y), stepMm) };
+            return { x: mmToPx(snapped.xMm), y: mmToPx(snapped.yMm) };
+          };
+          return (
+            <Rect
+              key={`dimension-handle-${key}`}
+              x={x - handleSizePx / 2}
+              y={y - handleSizePx / 2}
+              width={handleSizePx}
+              height={handleSizePx}
+              fill="#ffffff"
+              stroke="#2563eb"
+              strokeWidth={handleStrokeWidth}
+              cornerRadius={handleCornerRadius}
+              draggable
+              dragBoundFunc={dragBound}
+              onDragStart={(evt) => {
+                evt.cancelBubble = true;
+              }}
+              onDragMove={(evt) => {
+                evt.cancelBubble = true;
+              }}
+              onDragEnd={(evt) => {
+                evt.cancelBubble = true;
+                const pos = evt.target.position();
+                const worldPoint = { xMm: pxToMm(pos.x), yMm: pxToMm(pos.y) };
+                const localPoint = toLocalPoint(selectedDimension, worldPoint);
+                const patch =
+                  key === "start" ? { startMm: localPoint } : { endMm: localPoint };
+                onUpdateObject(selectedDimension.id, patch, true);
+              }}
+              listening={!spacePanning}
+            />
+          );
+        })
+      : null;
+
   return (
     <div className="ob-canvasHost" ref={containerRef} data-tool={activeTool}>
       {hasSize && camera ? (
@@ -1000,6 +1129,10 @@ export default function Canvas2D({
               <Group {...worldGroupProps}>{resizeHandles}</Group>
             </Layer>
 
+            <Layer>
+              <Group {...worldGroupProps}>{dimensionHandles}</Group>
+            </Layer>
+
             <Layer listening={false}>
               <Group {...worldGroupProps} {...workspaceClip}>
                 {clampedSnapX !== null && (
@@ -1028,10 +1161,37 @@ export default function Canvas2D({
                   <Circle x={snapMarkerPx.x} y={snapMarkerPx.y} radius={snapPointRadius} fill="#0ea5e9" opacity={0.85} />
                 )}
                 {ghostRamp && (
-                  <ShapeRamp2D obj={ghostRamp} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
+                  <ShapeRamp2D
+                    obj={ghostRamp}
+                    selected={false}
+                    hover={false}
+                    activeTool={activeTool}
+                    snapIncrementMm={snapIncrementMm}
+                    draggable={false}
+                    ghost
+                  />
                 )}
                 {ghostLanding && (
-                  <ShapeLanding2D obj={ghostLanding} selected={false} hover={false} activeTool={activeTool} draggable={false} ghost />
+                  <ShapeLanding2D
+                    obj={ghostLanding}
+                    selected={false}
+                    hover={false}
+                    activeTool={activeTool}
+                    snapIncrementMm={snapIncrementMm}
+                    draggable={false}
+                    ghost
+                  />
+                )}
+                {ghostDimension && (
+                  <ShapeDimension2D
+                    obj={ghostDimension}
+                    selected={false}
+                    hover={false}
+                    activeTool={activeTool}
+                    snapIncrementMm={snapIncrementMm}
+                    draggable={false}
+                    ghost
+                  />
                 )}
                 {pointerMmClamped && (
                   <>
