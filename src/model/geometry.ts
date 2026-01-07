@@ -1,5 +1,5 @@
 import { DEFAULT_LANDING_LENGTH_MM, DEFAULT_LANDING_WIDTH_MM, DEFAULT_RAMP_RUN_MM, DEFAULT_RAMP_WIDTH_MM } from "./defaults";
-import { Object2D, RampObj, Tool } from "./types";
+import { DimensionObj, Object2D, RampObj, Tool } from "./types";
 
 export type PointMm = { xMm: number; yMm: number };
 export type LineSegmentMm = { start: PointMm; end: PointMm };
@@ -23,6 +23,28 @@ const getRampCornerPoints = (obj: RampObj) => {
   const outerDownLeft: PointMm | null = lw > 0 ? { xMm: halfLength, yMm: -halfWidth - lw } : null;
 
   return { A, B, C, D, outerDownRight, outerDownLeft, lw, rw };
+};
+
+const getDimensionPointsMm = (obj: DimensionObj): PointMm[] => {
+  const direction = { xMm: obj.endMm.xMm - obj.startMm.xMm, yMm: obj.endMm.yMm - obj.startMm.yMm };
+  const length = Math.hypot(direction.xMm, direction.yMm);
+  const normal =
+    length === 0 ? { xMm: 0, yMm: -1 } : { xMm: -direction.yMm / length, yMm: direction.xMm / length };
+  const offset = { xMm: normal.xMm * obj.offsetMm, yMm: normal.yMm * obj.offsetMm };
+  const tickHalfMm = 40;
+
+  const start = { xMm: obj.startMm.xMm + offset.xMm, yMm: obj.startMm.yMm + offset.yMm };
+  const end = { xMm: obj.endMm.xMm + offset.xMm, yMm: obj.endMm.yMm + offset.yMm };
+  const tickOffset = { xMm: normal.xMm * tickHalfMm, yMm: normal.yMm * tickHalfMm };
+
+  return [
+    start,
+    end,
+    { xMm: start.xMm + tickOffset.xMm, yMm: start.yMm + tickOffset.yMm },
+    { xMm: start.xMm - tickOffset.xMm, yMm: start.yMm - tickOffset.yMm },
+    { xMm: end.xMm + tickOffset.xMm, yMm: end.yMm + tickOffset.yMm },
+    { xMm: end.xMm - tickOffset.xMm, yMm: end.yMm - tickOffset.yMm },
+  ];
 };
 
 export const getRampOutlinePointsMm = (obj: RampObj): PointMm[] => {
@@ -69,6 +91,10 @@ const boundingBoxFromPoints = (points: PointMm[]): BoundingBoxMm => {
 };
 
 export const getObjectBoundingBoxMm = (obj: Object2D): BoundingBoxMm => {
+  if (obj.kind === "dimension") {
+    const points = getDimensionPointsMm(obj).map((point) => rotatePoint(point, obj.rotationDeg));
+    return boundingBoxFromPoints(points);
+  }
   if (obj.kind === "ramp") {
     const outline = getRampOutlinePointsMm(obj);
     const rotated = outline.map((point) => rotatePoint(point, obj.rotationDeg));
