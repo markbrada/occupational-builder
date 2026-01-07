@@ -15,7 +15,7 @@ export const normaliseDeg = (deg: number): number => {
   return ((rounded % 360) + 360) % 360;
 };
 
-const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "H", "E"];
+const measurementKeys: MeasurementKey[] = ["L1", "L2", "W1", "W2", "WL", "WR", "H", "E"];
 
 const mergeMeasurements = (current: MeasurementState, patch?: Partial<MeasurementState>): MeasurementState => {
   if (!patch) return current;
@@ -24,6 +24,23 @@ const mergeMeasurements = (current: MeasurementState, patch?: Partial<Measuremen
     { ...current },
   );
 };
+
+const mergeMeasurementOffsets = (
+  current: Record<MeasurementKey, number>,
+  patch?: Partial<Record<MeasurementKey, number>>,
+): Record<MeasurementKey, number> => {
+  if (!patch) return current;
+  return measurementKeys.reduce<Record<MeasurementKey, number>>(
+    (acc, key) => ({ ...acc, [key]: patch[key] ?? current[key] }),
+    { ...current },
+  );
+};
+
+const normaliseMeasurementOffsets = (value: Record<MeasurementKey, number>): Record<MeasurementKey, number> =>
+  measurementKeys.reduce<Record<MeasurementKey, number>>(
+    (acc, key) => ({ ...acc, [key]: clampInt(value[key], 0) }),
+    {} as Record<MeasurementKey, number>,
+  );
 
 const normaliseBaseObject = (obj: Object2D): Object2D => ({
   ...obj,
@@ -34,6 +51,7 @@ const normaliseBaseObject = (obj: Object2D): Object2D => ({
   rotationDeg: normaliseDeg(obj.rotationDeg),
   xMm: roundMm(obj.xMm),
   yMm: roundMm(obj.yMm),
+  measurementOffsets: normaliseMeasurementOffsets(obj.measurementOffsets),
 });
 
 const normaliseRampObject = (obj: RampObj): RampObj => {
@@ -53,6 +71,9 @@ const normaliseLandingObject = (obj: LandingObj): LandingObj => normaliseBaseObj
 const measurementsEqual = (a: MeasurementState, b: MeasurementState): boolean =>
   measurementKeys.every((key) => a[key] === b[key]);
 
+const measurementOffsetsEqual = (a: Record<MeasurementKey, number>, b: Record<MeasurementKey, number>): boolean =>
+  measurementKeys.every((key) => a[key] === b[key]);
+
 const objectsEqual = (a: Object2D, b: Object2D): boolean => {
   const baseEqual =
     a.id === b.id &&
@@ -65,7 +86,8 @@ const objectsEqual = (a: Object2D, b: Object2D): boolean => {
     a.elevationMm === b.elevationMm &&
     a.rotationDeg === b.rotationDeg &&
     a.locked === b.locked &&
-    measurementsEqual(a.measurements, b.measurements);
+    measurementsEqual(a.measurements, b.measurements) &&
+    measurementOffsetsEqual(a.measurementOffsets, b.measurementOffsets);
 
   if (!baseEqual) return false;
 
@@ -84,9 +106,10 @@ const objectsEqual = (a: Object2D, b: Object2D): boolean => {
 };
 
 const applyPatchToRamp = (obj: RampObj, patch: ObjectPatch): RampObj => {
-  const { kind: _ignoredKind, measurements, ...rest } = patch as Partial<RampObj>;
+  const { kind: _ignoredKind, measurements, measurementOffsets, ...rest } = patch as Partial<RampObj>;
   const mergedMeasurements = mergeMeasurements(obj.measurements, measurements);
-  const candidate: RampObj = { ...obj, ...rest, measurements: mergedMeasurements, kind: "ramp" };
+  const mergedOffsets = mergeMeasurementOffsets(obj.measurementOffsets, measurementOffsets);
+  const candidate: RampObj = { ...obj, ...rest, measurements: mergedMeasurements, measurementOffsets: mergedOffsets, kind: "ramp" };
   return normaliseRampObject(candidate);
 };
 
@@ -100,10 +123,18 @@ const applyPatchToLanding = (obj: LandingObj, patch: ObjectPatch): LandingObj =>
     hasRightWing: _ignoreRightWing,
     rightWingSizeMm: _ignoreRightWingSize,
     measurements,
+    measurementOffsets,
     ...rest
   } = patch as Partial<RampObj>;
   const mergedMeasurements = mergeMeasurements(obj.measurements, measurements);
-  const candidate: LandingObj = { ...obj, ...rest, measurements: mergedMeasurements, kind: "landing" };
+  const mergedOffsets = mergeMeasurementOffsets(obj.measurementOffsets, measurementOffsets);
+  const candidate: LandingObj = {
+    ...obj,
+    ...rest,
+    measurements: mergedMeasurements,
+    measurementOffsets: mergedOffsets,
+    kind: "landing",
+  };
   return normaliseLandingObject(candidate);
 };
 
